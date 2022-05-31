@@ -50,7 +50,6 @@
 #      Rewrote get_cursor() to try three possible databases in a specific
 #      order.  Now requires a .netrc file.
      
-import pyodbc
 import mysql.connector
 from . import util
 from .util import Time
@@ -70,6 +69,7 @@ def get_cursor(host=None):
     import netrc
     if host is None:
         try:
+            import pyodbc
             HOST = 'sqlserver.solar.pvt'
             username, acct, password = netrc.netrc().authenticators(HOST)
             cnxn = pyodbc.connect("DRIVER={FreeTDS};SERVER="+HOST+",1433; \
@@ -89,6 +89,7 @@ def get_cursor(host=None):
                     return None, None
     elif host == 'sqlserver.solar.pvt':
         try:
+            import pyodbc
             HOST = host
             username, acct, password = netrc.netrc().authenticators(HOST)
             cnxn = pyodbc.connect("DRIVER={FreeTDS};SERVER="+HOST+",1433; \
@@ -126,7 +127,7 @@ def find_table_version(cursor,timestamp,scan_header=False):
     tblnames = data['TABLE_NAME']
     tblnames.sort()
     version = None
-    if type(cursor) == pyodbc.Cursor:
+    if str(cursor).find('pyodbc') != -1:
         query1 = 'select top 1 Timestamp from '
         query2 = ''
     else:
@@ -170,7 +171,7 @@ def get_dbrecs(cursor=None,version=None,dimension=None,timestamp=None,nrecs=None
     else:
         ts = timestamp
     mysql = False
-    if type(cursor) != pyodbc.Cursor:
+    if str(cursor).find('pyodbc') != -1:
         if str(type(cursor)).find('mysql') < 0:
             print('No database open')
             return {}
