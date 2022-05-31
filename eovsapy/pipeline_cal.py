@@ -124,6 +124,9 @@ def get_sql_info(trange):
     '''
     cnxn, cursor = db.get_cursor()
     sqldict = db.get_dbrecs(cursor, dimension=15, timestamp=trange)
+    if sqldict == {}:
+        print('Error: Could not retrieve data from SQL database.  Cannot continue.')
+        return {}
     azeldict = azel_from_sqldict(sqldict)
     time = Time(sqldict['Timestamp'][:, 0].astype(int), format='lv')
     azeldict.update({'Time': time})
@@ -597,6 +600,8 @@ def udb_corr(filelist, outpath='./', calibrate=False, new=True, gctime=None, att
         trange = Time(out['time'][[0, -1]], format='jd')
         t1 = time.time()
         azeldict = get_sql_info(trange)
+        if azeldict == {}:
+            return []
         print('Reading SQL info took', time.time() - t1, 's')
         sys.stdout.flush()
         ## Correct data for attenuation changes

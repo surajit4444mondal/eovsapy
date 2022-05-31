@@ -80,7 +80,7 @@ def get_fseqbandlist(t=None):
     query = 'select top 50 Timestamp,FSeqList from fV'+ver+'_vD50 where Timestamp <= '+str(tlv)+' order by Timestamp'
     data, msg = db.do_query(cursor, query)
     if msg == 'Success':
-        return freq2dbname(data['FSeqList']
+        return freq2dbname(data['FSeqList'])
     else:
         print(msg)
         return None

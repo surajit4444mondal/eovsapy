@@ -8,6 +8,8 @@
 #   Initial code formalized and documented.
 # 2021-Sep-18  DG
 #   Slight change to make this work for pre-2019 data.
+# 2022-May-28  DG
+#   Allow the input to calIDB to be a filename or list.
 
 import matplotlib.pylab as plt
 import numpy as np
@@ -26,20 +28,31 @@ def calIDB(trange):
         
         Input:
           trange    a two-element Time array, e.g. Time(['2021-05-29 23:00','2021-05-29 23:50'])
+                      OR a string giving a file name OR a list of strings giving multiple filenames.
           
         Output:
           files     a list of filenames of corrected files (from the current directory, so
                       the list has no path)
     '''
-    files = ri.get_trange_files(trange)
+    try:
+        files = ri.get_trange_files(trange)
+    except:
+        # Try to interpret "trange" as a list of files
+        files = trange
+        if type(files) != list:
+            if type(files) == str:
+                files = [files]
+            else:
+                print('Could not interpret',trange,'as either a Time() object or a file list')
+                return []
     print('The timerange corresponds to these files (will take about',len(files)*4,'minutes to process)')
     for file in files: print(file)
     ans = 'Y'
     ans = input('Do you want to continue? (say no if you want to adjust timerange) [y/n]?')
     if ans.upper() == 'Y':
+        outfiles = []
         for file in files:
-            pc.udb_corr(file,calibrate=True,desat=True)
-        files = [os.path.basename(i) for i in files]
+            outfiles.append(pc.udb_corr(file,calibrate=True,desat=True))
     else:
         files = []
     return files
