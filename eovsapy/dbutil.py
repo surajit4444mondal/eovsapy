@@ -171,7 +171,7 @@ def get_dbrecs(cursor=None,version=None,dimension=None,timestamp=None,nrecs=None
     else:
         ts = timestamp
     mysql = False
-    if str(cursor).find('pyodbc') != -1:
+    if str(cursor).find('pyodbc') == -1:
         if str(type(cursor)).find('mysql') < 0:
             print('No database open')
             return {}

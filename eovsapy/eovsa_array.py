@@ -176,7 +176,7 @@ def suntimes(t=None,out=None):
     date = t.iso.replace('-','/')[:10]+' 20:00'
     risestr = str(aa.previous_rising(ephem.Sun(),start=date)).replace('/','-')
     setstr = str(aa.next_setting(ephem.Sun(),start=date)).replace('/','-')
-    if out is 'str':
+    if out == 'str':
         return risestr, setstr
     trange = Time([risestr,setstr])
 

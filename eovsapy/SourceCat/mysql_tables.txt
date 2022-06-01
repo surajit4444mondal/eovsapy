@@ -3,7 +3,7 @@ CREATE TABLE `abin` (
   `Timestamp` double NOT NULL,
   `Version` float NOT NULL,
   `Description` varchar(8000) DEFAULT NULL,
-  `Bin` blob NOT NULL,
+  `Bin` mediumblob NOT NULL,
   PRIMARY KEY (`Id`)
 );
 
