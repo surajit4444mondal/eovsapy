@@ -53,6 +53,10 @@
 #  2021-Jul-20  DG
 #    Added rd_ifdb() to read IFDB files, which is attempted by rd_fdb() initially
 #    and if it fails then the corresponding FDB file is attempted to be read.
+#  2022-Jun-02  DG
+#    A number of changes to remove requirement of FDB files (except for
+#    specific FDB reading routines).
+#
 
 import subprocess, time, sys, glob
 import numpy as np
@@ -497,46 +501,23 @@ def get_projects_nosql(t):
                 'EOS':fdb['EN_TS'][sidx].astype(float)}
     return projdict
 
-def findfile(trange):
+def findfile(trange, scantype='PHASECAL'):
 
-    from .util import nearest_val_idx
-    import struct, time, glob, sys, socket
-
-    host = socket.gethostname()
-    if host == 'dpp':
-        fpath = '/data1/IDB/'
-    else:
-        fpath = get_idbdir(trange[0])
+    from .read_idb import get_trange_files
     t1 = str(trange[0].mjd)
     t2 = str(trange[1].mjd)
     tnow = Time.now()
 
+    projects = get_projects(trange[0])
     if t1[:5] != t2[:5]:
         # End day is different than start day, so read and concatenate two fdb files
-        fdb = {}
-        fdb1 = rd_fdb(trange[0])
-        fdb2 = rd_fdb(trange[1])
-        for key in list(fdb1.keys()):
-            fdb.update({key:np.append(fdb1[key],fdb2[key])})
-    else:
-        # Both start and end times are on the same day
-        fdb = rd_fdb(trange[0])
+        projects2 = get_projects(trange[1])
+        for key in list(projects.keys()):
+            projects.update({key:np.append(projects[key],projects2[key])})
 
-    scanidx, = np.where(fdb['PROJECTID'] == 'PHASECAL')
-    scans,sidx = np.unique(fdb['SCANID'][scanidx],return_index=True)
-    eidx = np.append(sidx[1:],len(scanidx)) - 1
-    # List of PHASECAL scan start times
-    tslist = Time(fdb['ST_TS'][scanidx[sidx]].astype(float).astype(int),format='lv')
-    # List of PHASECAL scan end times
-    telist = Time(fdb['EN_TS'][scanidx[eidx]].astype(float).astype(int),format='lv')
-    # Remove any bad values (i.e. those with ST_SEC = 0)
-    try:
-        good, = np.where(fdb['ST_SEC'][scanidx[sidx]] != '0')
-        tslist = tslist[good]
-        telist = telist[good]
-    except KeyError:
-        # Key 'ST_SEC' not found so just continue (this happens on pipeline when IFDB file is used)
-        pass
+    scanidx, = np.where(projects['Project'] == scantype)
+    tslist = Time(projects['Timestamp'][scanidx],format='lv')
+    telist = Time(projects['EOS'][scanidx],format='lv')
         
     k = 0         # Number of scans within timerange
     m = 0         # Pointer to first scan within timerange
@@ -547,7 +528,7 @@ def findfile(trange):
         if tslist[i].jd >= trange[0].jd and telist[i].jd <= trange[1].jd:
             # Time is in range, so add it
             k += 1
-        else:
+        elif tslist[i].jd < trange[0].jd:
             # Time is too early, so skip it
             m += 1
         
@@ -557,16 +538,13 @@ def findfile(trange):
     else: 
         print('Found',k,'scans in timerange.')
         for i in range(k):
-            f1 = fdb['FILE'][np.where(fdb['SCANID'] == scans[m+i])].astype('str')
+            scan_trange = Time([tslist[m+i].mjd,telist[m+i].mjd],format='mjd')
+            f1 = get_trange_files(scan_trange)
             # if fpath == '/data1/eovsa/fits/IDB/':
             #     f2 = [fpath + f[3:11] + '/' + f for f in f1]
             # else:
             #     f2 = [fpath + f for f in f1]
-            if host == 'dpp':
-                f2 = [fpath + f for f in f1]
-            else:
-                f2 = [fpath + f[3:11] + '/' + f for f in f1]
-            flist.append(f2)
+            flist.append(f1)
             tstlist.append(tslist[m+i])
             ted = telist[m+i]
             # Mark all files done except possibly the last

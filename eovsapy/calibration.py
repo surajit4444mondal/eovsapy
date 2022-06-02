@@ -545,7 +545,6 @@ def skycal_anal(t=None, do_plot=False, last=False, desat=False):
     '''
     from .gaincal2 import get_fem_level
     from . import read_idb as ri
-    import socket
 
 
     #    lev = get_fem_level(trange,300)
@@ -562,23 +561,11 @@ def skycal_anal(t=None, do_plot=False, last=False, desat=False):
         from .attncal import get_attncal
         outdict = get_attncal(t)
         return {'rcvr_bgd': outdict[0]['rcvr'], 'rcvr_bgd_auto': outdict[0]['rcvr_auto']}
-    fdb = dump_tsys.rd_fdb(t)
-    gcidxes, = np.where(fdb['PROJECTID'] == 'SKYCALTEST')
-    host = socket.gethostname()
-    if len(gcidxes) != 0:
-        if last:
-            gcidx = gcidxes[-1]
-        else:
-            gcidx = gcidxes[0]
-
-        datadir = get_idbdir(t)
-        # Add date path if on pipeline
-        # if datadir.find('eovsa') != -1:
-        #     datadir += fdb['FILE'][gcidx][3:11]+'/'
-        if host == 'pipeline': datadir += fdb['FILE'][gcidx][3:11]+'/'
-
-        file = datadir+fdb['FILE'][gcidx]
-        out = ri.read_idb([file], desat=desat)
+    mjd = t.mjd // 1
+    trange = Time([mjd+0.5,mjd+1.25],format='mjd')
+    proj = dump_tsys.findfile(trange,'SKYCALTEST')
+    if proj:
+        out = ri.read_idb(proj['scanlist'][0])
         skytrange = Time(out['time'][[0,-1]],format='jd')
         nant, npol, nf, nt = out['p'].shape
         if nant > 13: nant = 13

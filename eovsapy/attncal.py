@@ -41,7 +41,7 @@ from . import dump_tsys as dt
 from . import read_idb as ri
 
 def get_attncal(trange, do_plot=False, dataonly=False):
-    ''' Finds GAINCALTEST scans from FDB files corresponding to the days
+    ''' Finds GAINCALTEST scans from SQL database corresponding to the days
         present in trange Time() object (can be multiple days), calculates
         the attenuation differences for the various FEMATTN states 1-8 
         relative to FEMATTN state 0, and optionally plots the results for
@@ -91,35 +91,26 @@ def get_attncal(trange, do_plot=False, dataonly=False):
                 ax[j+2,i].set_ylim(3,5)
     outdict = []
     for mjd in range(mjd1,mjd2+1):
-        fdb = dt.rd_fdb(Time(mjd,format='mjd'))
-        gcidx, = np.where(fdb['PROJECTID'] == 'GAINCALTEST')
+        projects = dt.get_projects(Time(mjd,format='mjd'))
+        gcidx, = np.where(projects['Project'] == 'GAINCALTEST')
         if len(gcidx) == 0:
             print('No GAINCALTEST for this date.  Returning empty dict.')
             return outdict
         if len(gcidx) == 1:
-            print(fdb['FILE'][gcidx])
             gcidx = gcidx[0]
         else:
-            for i, fname in enumerate(fdb['FILE'][gcidx]):
-                print(str(i)+': GAINCALTEST File',fname)
+            for i, stime in enumerate(projects['Timestamp'][gcidx]):
+                print(str(i)+': GAINCALTEST Time',Time(stime,format='lv').iso)
             idex = eval(input('There is more than one GAINCALTEST. Select: '+np.arange(len(gcidx))+':'))
             gcidx = gcidx[idex]
         
-        datadir = get_idbdir(Time(mjd,format='mjd'))
-        # Add date path if on pipeline
-        # if datadir.find('eovsa') != -1: datadir += fdb['FILE'][gcidx][3:11]+'/'
-
-        host = socket.gethostname()
-        if host == 'pipeline': datadir += fdb['FILE'][gcidx][3:11]+'/'
-
-        file = datadir + fdb['FILE'][gcidx]
-        out = ri.read_idb([file])
+        gcaltrange = Time([projects['Timestamp'][gcidx],projects['EOS'][gcidx]],format='lv')
+        out = ri.read_idb(gcaltrange)
         if dataonly:
             return out
         # Get time from filename and read 120 records of attn state from SQL database
-        filemjd = fname2mjd(fdb['FILE'][gcidx])
         cnxn, cursor = dbutil.get_cursor()
-        d15 = dbutil.get_dbrecs(cursor, dimension=15, timestamp=Time(filemjd,format='mjd'), nrecs=120)
+        d15 = dbutil.get_dbrecs(cursor, dimension=15, timestamp=Time(projects['Timestamp'][gcidx],format='lv'), nrecs=120)
         cnxn.close()
         # Find time indexes of the 62 dB attn state
         # Uses only ant 1 assuming all are the same
