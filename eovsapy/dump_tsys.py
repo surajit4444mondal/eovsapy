@@ -512,8 +512,9 @@ def findfile(trange, scantype='PHASECAL'):
     if t1[:5] != t2[:5]:
         # End day is different than start day, so read and concatenate two fdb files
         projects2 = get_projects(trange[1])
-        for key in list(projects.keys()):
-            projects.update({key:np.append(projects[key],projects2[key])})
+        if projects2 != {}:
+            for key in list(projects.keys()):
+                projects.update({key:np.append(projects[key],projects2[key])})
 
     scanidx, = np.where(projects['Project'] == scantype)
     tslist = Time(projects['Timestamp'][scanidx],format='lv')

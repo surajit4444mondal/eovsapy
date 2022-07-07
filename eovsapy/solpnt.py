@@ -181,7 +181,7 @@ def get_solpnt(t=None, find=True):
         stimestamp = t.lv
 
     # Grab 300 records after the start time
-    cursor = dbutil.get_cursor()
+    cnxn, cursor = dbutil.get_cursor()
     # Now version independent!
     verstr = dbutil.find_table_version(cursor,stimestamp)
     if verstr is None:
