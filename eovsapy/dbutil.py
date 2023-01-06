@@ -51,7 +51,6 @@
 #      order.  Now requires a .netrc file.
      
 import mysql.connector
-from . import util
 from .util import Time
 import numpy as np
 import sys
@@ -156,7 +155,7 @@ def get_dbrecs(cursor=None,version=None,dimension=None,timestamp=None,nrecs=None
         a timerange.  If the latter, nrecs is determined from the timerange.
     '''
     te = None
-    if type(timestamp) == util.Time:
+    if type(timestamp) == Time:
         try:
             if len(timestamp) == 2:
                 # This is a timerange as Time object.  Generate nrecs from time difference (in s)
@@ -282,12 +281,16 @@ def get_chi(trange):
     ''' Get the parallactic angle for all antennas (ntimes x 15) for a
         given time range (returns times and parallactic angle--radians)
     '''
+    from .util import azel_from_sqldict
+    cnxn, cursor = get_cursor()
     sqldict = get_dbrecs(cursor, dimension=15, timestamp=trange)
+    cnxn.close()
     if sqldict == {}:
         print('GET_CHI: Failed to get Parallactic Angle for given timerange')
         return None, None
     azeldict = azel_from_sqldict(sqldict)
-    return azeldict['Timestamp'], azeldict['ParallacticAngle']
+    times = Time(sqldict['Timestamp'][:,0].astype('int'),format='lv')
+    return times, azeldict['ParallacticAngle']
 
 def get_motor_currents(trange):
     ''' Get the Azimuth and Elevation motor currents for all antennas (ntimes x 15) for a
@@ -324,6 +327,7 @@ def get_reboot(trange,previous=False):
     ver = find_table_version(cursor,t0,scan_header=True)
     query = 'select Timestamp,TimeAtAcc0 from hV'+ver+'_vD1 where Timestamp between '+str(t0)+' and '+str(t1)+' order by Timestamp'
     data, msg = do_query(cursor, query)
+    cnxn.close()
     t0, idx = np.unique(data['TimeAtAcc0'],return_index=True)
     t_reboot = data['TimeAtAcc0'][idx].astype(float)
     if previous:

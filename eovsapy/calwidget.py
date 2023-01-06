@@ -249,7 +249,8 @@ class App():
         ''' Have to explicitly call quit, in order to close all of the plot windows.
         '''
         close('all')
-        exit()
+        #exit()
+        exit
         
     def do_flags(self):
         ''' Apply the tflags.  All this is, is a call to refcal_anal for the selected scan
