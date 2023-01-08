@@ -13,7 +13,7 @@ Python code and files for Expanded Owens Valley Solar Array. Our homepage `EOVSA
 
 Installation
 ============
-The recommended way to install SunCASA is with `pip`_.
+The recommended way to install EOVSAPY is with `pip`_.
 Once pip is installed, run the following command:
 
 .. code:: bash
