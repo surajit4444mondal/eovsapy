@@ -611,6 +611,7 @@ def udb_corr(filelist, outpath='./', calibrate=False, new=True, gctime=None, att
             if calibrate:
                 # For the skycal, use the date that the total power calibration was taken
                 if trange[0].datetime.hour < 7:
+
                     # Data time is earlier than 7 UT (i.e. on previous local day) so
                     # use previous date at 20 UT.
                     mjd = int(trange[0].mjd) - 1 + 20. / 24

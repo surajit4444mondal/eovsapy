@@ -242,7 +242,7 @@ def udbfile_write(y, ufile_in, ufilename):
         uvout['inttime'] = dtsec
         uvout.add_var('nsamples', 'i')
         # Array of number of 1-s samples in each interval
-        uvout['nsamples'] = y['nsamples']
+        uvout['nsamples'] = y['nsamples'].astype(np.int64)
 
     #define the record variables here
     uvout.add_var('ut', 'd')
