@@ -63,7 +63,7 @@
 
 import subprocess, time, sys, glob
 import numpy as np
-from .util import Time, common_val_idx
+from eovsapy.util import Time, common_val_idx
 
 
 def file_list(trange, udb=False):
@@ -82,7 +82,7 @@ def file_list(trange, udb=False):
         mjd1, mjd2 = trange.mjd.astype('int')
         if mjd2 != mjd1:
             if (mjd2 - 1) != mjd1:
-                usage('Second date must differ from first by at most 1 day')
+                print('Second date must differ from first by at most 1 day')
             else:
                 fstr2 = trange[1].iso
                 files2 = glob.glob(folder + '/UDB' + fstr2.replace('-', '').split()[0] + '*')
@@ -436,7 +436,7 @@ def get_projects(t, nosql=False):
     '''
     if nosql == True:
         return get_projects_nosql(t)
-    from . import dbutil
+    from eovsapy import dbutil
     # timerange is 12 UT to 12 UT on next day, relative to the day in Time() object t
     trange = Time([int(t.mjd) + 12./24,int(t.mjd) + 36./24],format='mjd')
     tstart, tend = trange.lv.astype('str')
@@ -501,7 +501,7 @@ def findfile(trange, scantype='PHASECAL', srcid=None):
     ''' Finds project ID entries from SQL matching scantype, for the give 
         timerange.
     '''
-    from .read_idb import get_trange_files
+    from eovsapy.read_idb import get_trange_files
     t1 = str(trange[0].mjd)
     t2 = str(trange[1].mjd)
     tnow = Time.now()
@@ -567,3 +567,67 @@ def findfile(trange, scantype='PHASECAL', srcid=None):
             status.append(fstatus)
 
     return {'scanlist':flist, 'status':status, 'srclist':srclist, 'tstlist':tstlist, 'tedlist':tedlist}
+
+
+
+def findfiles(trange, projid='PHASECAL', srcid=None):
+    '''identify refcal files
+    ***Optional Keywords***
+    projid: String--PROJECTID in UFBD records. Default is PHASECAL
+    srcid: String--SOURCEID in UFBD records. Can be a string or a list
+    '''
+    from eovsapy import dump_tsys
+    fpath = '/data1/eovsa/fits/UDB/' + trange[0].iso[:4] + '/'
+    t1 = trange[0].to_datetime()
+    t2 = trange[1].to_datetime()
+    daydelta = (t2.date() - t1.date()).days
+    tnow = Time.now()
+    if t1.date() != t2.date():
+        # End day is different than start day, so read and concatenate two fdb files
+        ufdb = dump_tsys.rd_ufdb(trange[0])
+        for ll in range(daydelta):
+            ufdb2 = dump_tsys.rd_ufdb(Time(trange[0].mjd + ll + 1, format='mjd'))
+            if ufdb2:
+                for key in ufdb.keys():
+                    ufdb.update({key: np.append(ufdb[key], ufdb2[key])})
+    else:
+        # Both start and end times are on the same day
+        ufdb = dump_tsys.rd_ufdb(trange[0])
+
+    if srcid:
+        if type(srcid) is str:
+            srcid = [srcid]
+        sidx_ = np.array([])
+        for sid in srcid:
+            sidx, = np.where((ufdb['PROJECTID'] == projid) & (ufdb['SOURCEID'] == sid))
+            sidx_ = np.append(sidx_, sidx)
+        scanidx = np.sort(sidx_).astype('int')
+    else:
+        scanidx, = np.where(ufdb['PROJECTID'] == projid)
+    # List of scan start times
+    tslist = Time(ufdb['ST_TS'][scanidx].astype(float).astype(int), format='lv')
+    # List of PHASECAL scan end times
+    telist = Time(ufdb['EN_TS'][scanidx].astype(float).astype(int), format='lv')
+
+    k = 0  # Number of scans within timerange
+    m = 0  # Pointer to first scan within timerange
+    flist = []
+    status = []
+    tstlist = []
+    tedlist = []
+    srclist = []
+    for i in range(len(tslist)):
+        if tslist[i].jd >= trange[0].jd and tslist[i].jd <= trange[1].jd:
+            flist.append(fpath + ufdb['FILE'][scanidx[i]].astype('str'))
+            tstlist.append(tslist[i])
+            tedlist.append(telist[i])
+            srclist.append(ufdb['SOURCEID'][scanidx[i]])
+            k += 1
+
+    if k == 0:
+        print('No scans found within given time range for ' + projid)
+        return None
+    else:
+        print('Found', k, 'scans in timerange.')
+
+    return {'scanlist': flist, 'srclist': srclist, 'tstlist': tstlist, 'tedlist': tedlist}
