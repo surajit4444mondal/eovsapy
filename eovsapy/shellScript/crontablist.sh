@@ -38,7 +38,7 @@
 0 9 * * * cd /data1/workdir; /bin/csh /home/user/test_svn/shell_scripts/daily_xsp.csh > /tmp/daily_xsp.log 2>&1
 
 # Run the image pipeline that creates the full-disk images every day
-0 8 * * * cd /data1/workdir; /bin/bash /common/python/suncasa/shellScript/pipeline_fdimg.bash
+0 8 * * * cd /data1/workdir; /bin/bash /common/python/eovsapy/shellScript/pipeline_fdimg.sh
 
 ## Run the process that creates the raw UDBms files
 #0,30 * * * * touch /data1/eovsa/fits/UDBms/LOG/UDB2MS$(date +%Y%m%d).log;/bin/tcsh /home/user/sjyu/udb2ms.csh >> /data1/eovsa/fits/UDBms/LOG/UDB2MS$(date +%Y%m%d).log 2>&1

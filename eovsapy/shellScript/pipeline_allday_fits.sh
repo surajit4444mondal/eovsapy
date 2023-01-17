@@ -2,5 +2,5 @@
 
 #source /home/user/.cshrc
 # Run the allday fits pipeline
-source /home/user/.setenv_pyenv38test
+source /home/user/.setenv_pyenv38
 /home/user/.pyenv/shims/python /common/python/eovsapy/pipeline_allday_fits.py $argv

@@ -1,7 +1,7 @@
 def find_calibrations(year, month):
     import calendar
-    from .util import Time, extract
-    from . import cal_header as ch
+    from eovsapy.util import Time, extract
+    from eovsapy import cal_header as ch
     hc = calendar.HTMLCalendar(calendar.SUNDAY)
     html_table = hc.formatmonth(year, month)
     lines = html_table.split('\n')
@@ -38,10 +38,11 @@ if __name__ == '__main__':
     import numpy as np
 
     try:
-        year = np.int(sys.argv[1])
-        month = np.int(sys.argv[2])
+        year = int(sys.argv[1])
+        month = int(sys.argv[2])
     except:
         print('Error interpreting command line argument')
+    # print(year, month)
     txt = find_calibrations(year, month)
     f = open('/common/webplots/cal_status/{:4}{:02d}'.format(year, month) + '.txt', 'w')
     f.write(txt)
