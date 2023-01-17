@@ -170,9 +170,9 @@ def get_solpnt(t=None, find=True):
                 return {}
             # This is the timestamp of the first SOLPNTCAL scan after given time
             if len(good) == 1:
-                stimestamp = np.int(tstamps[good[0]])
+                stimestamp = np.int_(tstamps[good[0]])
             else:
-                stimestamp = np.int(tstamps[good][0])
+                stimestamp = np.int_(tstamps[good][0])
         else:
             print('Warning: No SOLPNTCAL scan found, so interpreting given time as SOLPNTCAL time.') 
             stimestamp = timestamp

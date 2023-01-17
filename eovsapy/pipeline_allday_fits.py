@@ -5,10 +5,10 @@ if __name__ == '__main__':
 
     matplotlib.use("Agg")
 
-    from . import pipeline_cal as pc
-    import eovsa_fits as ef
+    from eovsapy import pipeline_cal as pc
+    from eovsapy import eovsa_fits as ef
+    from eovsapy.util import Time
     import glob
-    from util import Time
     import sys, os
 
     print(sys.argv)
