@@ -381,7 +381,7 @@ def get_gain_state(trange, dt=None, relax=False):
     cnxn.close()
     return {'times':times,'h1':h1,'v1':v1,'h2':h2,'v2':v2,'dcmattn':dcmattn,'dcmoff':dcm_off}
 
-def apply_fem_level(data, skycal=None, gctime=None):
+def apply_fem_level(data, skycal={}, gctime=None):
     ''' Applys the FEM level corrections to the given data dictionary.
         
         Inputs:
@@ -408,8 +408,12 @@ def apply_fem_level(data, skycal=None, gctime=None):
     # Get time cadence
     dt = np.int_(np.round(np.median(data['time'][1:] - data['time'][:-1]) * 86400))
     if dt == 1: dt = None
+    cdata = copy.deepcopy(data)
     # Get the FEM levels of the requested timerange
     src_lev = get_fem_level(trange,dt)   # solar gain state for timerange of file
+    if src_lev == {}:
+        print('APPLY_FEM_LEVEL: No GAINCALTEST scans for this date, so no FEM level correction applied.')
+        return cdata
     nf = len(data['fghz'])
     nt = len(src_lev['times'])
     # First attempt to read from the SQL database.  If that fails, read from the IDB file itself
@@ -450,7 +454,6 @@ def apply_fem_level(data, skycal=None, gctime=None):
             for k,j in enumerate(idx1):
                 antgain[i,0,j] = a[src_lev['hlev'][i],i,0,idx2[k]]
                 antgain[i,1,j] = a[src_lev['vlev'][i],i,1,idx2[k]]
-    cdata = copy.deepcopy(data)
     blgain = np.zeros((120,4,nf,nt),float)     # Baseline-based gains vs. frequency
     for i in range(14):
          for j in range(i+1,15):
@@ -467,7 +470,7 @@ def apply_fem_level(data, skycal=None, gctime=None):
     cdata['x'] *= blgain[:,:,:,idx]
     # If a skycal dictionary exists, subtract receiver noise before scaling
     # NB: This will break SK!
-    if skycal:
+    if skycal != {}:
         sna, snp, snf = skycal['rcvr_bgd'].shape
         bgd = skycal['rcvr_bgd'].repeat(nt).reshape((sna,snp,snf,nt))
         bgd_auto = skycal['rcvr_bgd_auto'].repeat(nt).reshape((sna,snp,snf,nt))

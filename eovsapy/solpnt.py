@@ -585,7 +585,7 @@ def rd_tsys(tsysfile,sfreqfile):
     otp = {'ut_mjd':util.Time(tstamp[:j+1],format='lv').mjd,'fghz':sfreq[:nf],'tsys':np.swapaxes(out[:j+1,:nf,:],0,2),'header':header}
     return otp
 
-def process_tsys(otp, proc, pol=None, skycal=None):
+def process_tsys(otp, proc, pol=None, skycal={}):
     ''' OTP contains tsys, of size [nant, npol, nf, nt], ut_mjd of size [nt], fghz of size [nf]
             and a 4-line ascii header.  nant is 4 for prototype
         This only operates on one polarization at a time.  If npol = 2, use pol=0 and pol=1 in
@@ -642,7 +642,7 @@ def process_tsys(otp, proc, pol=None, skycal=None):
     deco = hpol[:,13:,:]  # Second 13 pointings are DECO
     # Handle skycal offsun modification, provided the number of frequencies
     # and number of antennas in skycal and solpnt match (they should!).  Otherwise, skip it.
-    if (not pol is None) and skycal:
+    if (not pol is None) and skycal != {}:
         skynant, skynpol, skynf = skycal['offsun'].shape
         if nf == skynf and nant == skynant:
             # Insert 10-degree offsets before and after actual offsets
