@@ -167,7 +167,7 @@ def apply_fem_level(data, gctime=None, skycal=None):
     if gctime is None:
         gctime = trange[0]
     # Get time cadence
-    dt = np.int(np.round(np.nanmedian(data['time'][1:] - data['time'][:-1]) * 86400))
+    dt = np.int64(np.round(np.nanmedian(data['time'][1:] - data['time'][:-1]) * 86400))
     if dt == 1: dt = None
     # Get the FEM levels of the requested timerange
     src_lev = get_fem_level(trange, dt)  # solar gain state for timerange of file
@@ -303,7 +303,7 @@ def apply_attn_corr(data, tref=None):
     # Get timerange from data
     trange = Time([data['time'][0], data['time'][-1]], format='jd')
     # Get time cadence
-    dt = np.int(np.round(np.nanmedian(data['time'][1:] - data['time'][:-1]) * 86400))
+    dt = np.int64(np.round(np.nanmedian(data['time'][1:] - data['time'][:-1]) * 86400))
     if dt == 1: dt = None
     # Get the gain state of the requested timerange
     src_gs = get_gain_state(trange, dt)  # solar gain state for timerange of file
@@ -365,10 +365,10 @@ def get_calfac(t=None):
     fghz = extract(buf, xml['FGHz'])
     nf = len(fghz)
     nant = len(xml['Antenna'])
-    tpcalfac = np.zeros((nant, 2, nf), np.float)
-    tpoffsun = np.zeros((nant, 2, nf), np.float)
-    accalfac = np.zeros((nant, 2, nf), np.float)
-    acoffsun = np.zeros((nant, 2, nf), np.float)
+    tpcalfac = np.zeros((nant, 2, nf), np.float64)
+    tpoffsun = np.zeros((nant, 2, nf), np.float64)
+    accalfac = np.zeros((nant, 2, nf), np.float64)
+    acoffsun = np.zeros((nant, 2, nf), np.float64)
     for i in range(nant):
         iant = extract(buf, xml['Antenna'][i]['Antnum']) - 1
         tpcalfac[iant] = extract(buf, xml['Antenna'][i]['TPCalfac'])
@@ -611,6 +611,7 @@ def udb_corr(filelist, outpath='./', calibrate=False, new=True, gctime=None, att
             if calibrate:
                 # For the skycal, use the date that the total power calibration was taken
                 if trange[0].datetime.hour < 7:
+
                     # Data time is earlier than 7 UT (i.e. on previous local day) so
                     # use previous date at 20 UT.
                     mjd = int(trange[0].mjd) - 1 + 20. / 24

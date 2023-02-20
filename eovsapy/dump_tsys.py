@@ -56,21 +56,14 @@
 #  2022-Jun-02  DG
 #    A number of changes to remove requirement of FDB files (except for
 #    specific FDB reading routines).
+#  2023-Jan-07  DG
+#    Changes to return source IDs in get_projects() and to select on Source ID
+#    in findfile().
 #
 
 import subprocess, time, sys, glob
 import numpy as np
-from .util import Time
-
-
-def common_val_idx(array1, array2):
-    ''' Find the common values in two sorted arrays, and return the array
-        of indexes of those common values in the two arrays.
-    '''
-    common = np.intersect1d(array1, array2, True)
-    idx1 = np.searchsorted(array1, common)
-    idx2 = np.searchsorted(array2, common)
-    return idx1, idx2
+from eovsapy.util import Time, common_val_idx
 
 
 def file_list(trange, udb=False):
@@ -89,7 +82,7 @@ def file_list(trange, udb=False):
         mjd1, mjd2 = trange.mjd.astype('int')
         if mjd2 != mjd1:
             if (mjd2 - 1) != mjd1:
-                usage('Second date must differ from first by at most 1 day')
+                print('Second date must differ from first by at most 1 day')
             else:
                 fstr2 = trange[1].iso
                 files2 = glob.glob(folder + '/UDB' + fstr2.replace('-', '').split()[0] + '*')
@@ -443,7 +436,7 @@ def get_projects(t, nosql=False):
     '''
     if nosql == True:
         return get_projects_nosql(t)
-    from . import dbutil
+    from eovsapy import dbutil
     # timerange is 12 UT to 12 UT on next day, relative to the day in Time() object t
     trange = Time([int(t.mjd) + 12./24,int(t.mjd) + 36./24],format='mjd')
     tstart, tend = trange.lv.astype('str')
@@ -454,7 +447,7 @@ def get_projects(t, nosql=False):
     if verstrh is None:
         print('No scan_header table found for given time.')
         return {}
-    query = 'select Timestamp,Project from hV'+verstrh+'_vD1 where Timestamp between '+tstart+' and '+tend+' order by Timestamp'
+    query = 'select Timestamp,Project,SourceID from hV'+verstrh+'_vD1 where Timestamp between '+tstart+' and '+tend+' order by Timestamp'
     projdict, msg = dbutil.do_query(cursor, query)
     if msg != 'Success':
         print(msg)
@@ -465,9 +458,11 @@ def get_projects(t, nosql=False):
         return {}
     projdict['Timestamp'] = projdict['Timestamp'].astype('float')  # Convert timestamps from string to float
     for i in range(len(projdict['Project'])): projdict['Project'][i] = projdict['Project'][i].replace('\x00','')
+    for i in range(len(projdict['SourceID'])): projdict['SourceID'][i] = projdict['SourceID'][i].replace('\x00','')
     projdict.update({'EOS':projdict['Timestamp'][1:]})
     projdict.update({'Timestamp':projdict['Timestamp'][:-1]})
     projdict.update({'Project':projdict['Project'][:-1]})
+    projdict.update({'SourceID':projdict['SourceID'][:-1]})
     cnxn.close()
     return projdict
 
@@ -498,12 +493,15 @@ def get_projects_nosql(t):
     # Get the project IDs for scans during the period
     projdict = {'Timestamp':fdb['ST_TS'][sidx].astype(float),
                 'Project':fdb['PROJECTID'][sidx],
-                'EOS':fdb['EN_TS'][sidx].astype(float)}
+                'EOS':fdb['EN_TS'][sidx].astype(float),
+                'SourceID':fdb['SOURCEID'][sidx]}
     return projdict
 
-def findfile(trange, scantype='PHASECAL'):
-
-    from .read_idb import get_trange_files
+def findfile(trange, scantype='PHASECAL', srcid=None):
+    ''' Finds project ID entries from SQL matching scantype, for the give 
+        timerange.
+    '''
+    from eovsapy.read_idb import get_trange_files
     t1 = str(trange[0].mjd)
     t2 = str(trange[1].mjd)
     tnow = Time.now()
@@ -517,14 +515,22 @@ def findfile(trange, scantype='PHASECAL'):
                 projects.update({key:np.append(projects[key],projects2[key])})
 
     scanidx, = np.where(projects['Project'] == scantype)
+    if type(srcid) is str:
+        # Find scans matching source ID
+        srcidx, = np.where(projects['SourceID'] == srcid)
+        scidx, sridx = common_val_idx(scanidx, srcidx)
+        scanidx = scanidx[scidx]   # Select subset of scans matching source ID
     tslist = Time(projects['Timestamp'][scanidx],format='lv')
     telist = Time(projects['EOS'][scanidx],format='lv')
+    srcs = projects['SourceID'][scanidx]
         
     k = 0         # Number of scans within timerange
     m = 0         # Pointer to first scan within timerange
     flist = []
     status = []
     tstlist = []
+    tedlist = []
+    srclist = []
     for i in range(len(tslist)):
         if tslist[i].jd >= trange[0].jd and telist[i].jd <= trange[1].jd:
             # Time is in range, so add it
@@ -534,7 +540,10 @@ def findfile(trange, scantype='PHASECAL'):
             m += 1
         
     if k == 0: 
-        print('No phase calibration data within given time range')
+        if type(srcid) is str():
+            print('No phase calibration data for source',srcid,'within given time range')
+        else:
+            print('No phase calibration data within given time range')
         return None
     else: 
         print('Found',k,'scans in timerange.')
@@ -547,37 +556,78 @@ def findfile(trange, scantype='PHASECAL'):
             #     f2 = [fpath + f for f in f1]
             flist.append(f1)
             tstlist.append(tslist[m+i])
-            ted = telist[m+i]
+            tedlist.append(telist[m+i])
+            srclist.append(srcs[m+i])
             # Mark all files done except possibly the last
             fstatus = ['done']*len(f1)
             # Check if last file end time is less than 10 min ago
-            if (tnow.jd - ted.jd) < (600./86400):
+            if (tnow.jd - tedlist[-1].jd) < (600./86400):
                 # Current time is less than 10 min after this scan
                 fstatus[-1] = 'undone'
             status.append(fstatus)
 
-    return {'scanlist':flist,'status':status,'tstlist':tstlist}
-    
-if __name__ == "__main__":
-    def usage(instr):
-        print(instr)
-        print('Usage:  dump_tsys <date1> <date2>')
-        print('   e.g. dump_tsys "2014-11-16 16:00:00" "2014-11-16 17:00:00"')
-        exit()
+    return {'scanlist':flist, 'status':status, 'srclist':srclist, 'tstlist':tstlist, 'tedlist':tedlist}
 
 
-    arglist = str(sys.argv)
-    if len(sys.argv) < 3:
-        usage('No times listed')
-    try:
-        t1 = Time(sys.argv[1])
-    except:
-        print(sys.argv[1])
-        usage('First argument not recognized as a valid time string')
-    try:
-        t2 = Time(sys.argv[2])
-    except:
-        print(sys.argv[2])
-        usage('Second argument not recognized as a valid time string')
 
-    dump_tsys(Time([t1.iso, t2.iso]))
+def findfiles(trange, projid='PHASECAL', srcid=None):
+    '''identify refcal files
+    ***Optional Keywords***
+    projid: String--PROJECTID in UFBD records. Default is PHASECAL
+    srcid: String--SOURCEID in UFBD records. Can be a string or a list
+    '''
+    from eovsapy import dump_tsys
+    fpath = '/data1/eovsa/fits/UDB/' + trange[0].iso[:4] + '/'
+    t1 = trange[0].to_datetime()
+    t2 = trange[1].to_datetime()
+    daydelta = (t2.date() - t1.date()).days
+    tnow = Time.now()
+    if t1.date() != t2.date():
+        # End day is different than start day, so read and concatenate two fdb files
+        ufdb = dump_tsys.rd_ufdb(trange[0])
+        for ll in range(daydelta):
+            ufdb2 = dump_tsys.rd_ufdb(Time(trange[0].mjd + ll + 1, format='mjd'))
+            if ufdb2:
+                for key in ufdb.keys():
+                    ufdb.update({key: np.append(ufdb[key], ufdb2[key])})
+    else:
+        # Both start and end times are on the same day
+        ufdb = dump_tsys.rd_ufdb(trange[0])
+
+    if srcid:
+        if type(srcid) is str:
+            srcid = [srcid]
+        sidx_ = np.array([])
+        for sid in srcid:
+            sidx, = np.where((ufdb['PROJECTID'] == projid) & (ufdb['SOURCEID'] == sid))
+            sidx_ = np.append(sidx_, sidx)
+        scanidx = np.sort(sidx_).astype('int')
+    else:
+        scanidx, = np.where(ufdb['PROJECTID'] == projid)
+    # List of scan start times
+    tslist = Time(ufdb['ST_TS'][scanidx].astype(float).astype(int), format='lv')
+    # List of PHASECAL scan end times
+    telist = Time(ufdb['EN_TS'][scanidx].astype(float).astype(int), format='lv')
+
+    k = 0  # Number of scans within timerange
+    m = 0  # Pointer to first scan within timerange
+    flist = []
+    status = []
+    tstlist = []
+    tedlist = []
+    srclist = []
+    for i in range(len(tslist)):
+        if tslist[i].jd >= trange[0].jd and tslist[i].jd <= trange[1].jd:
+            flist.append(fpath + ufdb['FILE'][scanidx[i]].astype('str'))
+            tstlist.append(tslist[i])
+            tedlist.append(telist[i])
+            srclist.append(ufdb['SOURCEID'][scanidx[i]])
+            k += 1
+
+    if k == 0:
+        print('No scans found within given time range for ' + projid)
+        return None
+    else:
+        print('Found', k, 'scans in timerange.')
+
+    return {'scanlist': flist, 'srclist': srclist, 'tstlist': tstlist, 'tedlist': tedlist}

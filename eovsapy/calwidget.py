@@ -701,7 +701,7 @@ class App():
             if line[-1] == 'R':
                 data = self.pc_dictlist[k]
                 # Convert frequency to band
-                bands = data['bands'] #(data['fghz']*2 - 1).astype(np.int)
+                bands = data['bands'] #(data['fghz']*2 - 1).astype(np.int32)
                 good, = np.where(bands != -1)
                 # This is a refcal so act accordingly
                 flags = data['flags'][:13,:2]
@@ -750,7 +750,7 @@ class App():
             elif line[-1] == 'P':
                 data = self.pc_dictlist[k]
                 # Convert frequency to band
-                bands = data['bands'] #(data['fghz']*2 - 1).astype(np.int)
+                bands = data['bands'] #(data['fghz']*2 - 1).astype(np.int32)
                 # This is a phacal so act accordingly
                 flags = data['flags'][:13,:2]
                 im = ax.pcolormesh(np.arange(14),np.arange(self.maxnbd+1),np.transpose(np.sum(flags,1)))
@@ -1111,13 +1111,13 @@ def phase_diff(phacal, refcal):
         self.status.config(text = 'Status: Phase and Reference calibrations have different frequencies.  No action taken.')
         return phacal
     dpha = np.angle(phacal['x'][:,:2]) - np.angle(refcal['x'][:,:2])
-    flags = np.logical_or(phacal['flags'][:,:2],refcal['flags'][:,:2]).astype(np.int)
+    flags = np.logical_or(phacal['flags'][:,:2],refcal['flags'][:,:2]).astype(np.int32)
     amp_pc = np.abs(phacal['x'][:,:2])
     amp_rc = np.abs(refcal['x'][:,:2])
     sigma = ((phacal['sigma'][:,:2]/amp_pc)**2. + (refcal['sigma'][:,:2]/amp_rc)**2)**0.5
-    slopes = np.zeros((15,2),np.float)
-    offsets = np.zeros((15,2),np.float)
-    flag = np.zeros((15,2),np.float)
+    slopes = np.zeros((15,2),np.float64)
+    offsets = np.zeros((15,2),np.float64)
+    flag = np.zeros((15,2),np.float64)
     for ant in range(13):
         for pol in range(2):
             good, = np.where(flags[ant,pol] == 0)
@@ -1214,8 +1214,8 @@ def rd_refcal(file, quackint=120., navg=3):
     bds, sidx = np.unique(band, return_index=True)
     nbd = len(bds)
     eidx = np.append(sidx[1:], len(band))
-    dxy = np.zeros((14, maxnbd), dtype=np.float)
-    xi = np.zeros(maxnbd, dtype=np.float)
+    dxy = np.zeros((14, maxnbd), dtype=np.float64)
+    xi = np.zeros(maxnbd, dtype=np.float64)
     fghz = np.zeros(maxnbd)
     # average dph and xi_rot frequencies within each band, to convert to band representation
     for b, bd in enumerate(bds):
@@ -1253,7 +1253,7 @@ def rd_refcal(file, quackint=120., navg=3):
     # *******
     if fghz[1] < 1.:
         fghz[1] = 1.9290   # This band is missing, but no need to set its frequency to zero...
-    return {'file': file, 'source': out['source'], 'vis': vis, 'bands': bands, 'fghz': fghz, 'times': out['time'], 'ha': out['ha'], 'dec': out['dec'], 'flag': np.zeros_like(vis, dtype=np.int)}
+    return {'file': file, 'source': out['source'], 'vis': vis, 'bands': bands, 'fghz': fghz, 'times': out['time'], 'ha': out['ha'], 'dec': out['dec'], 'flag': np.zeros_like(vis, dtype=np.int32)}
     
 def refcal_anal(out):
     ''' Analyze the visibility data from rd_refcal and return time averaged visibility 
@@ -1285,7 +1285,7 @@ def refcal_anal(out):
                             vis[i,:,j,bad] = np.nan
     else:
         # If there was no tflags key, add one of all zeros.
-        out.update({'tflags':np.zeros((13,maxnbd,2,2),np.float)})
+        out.update({'tflags':np.zeros((13,maxnbd,2,2),np.float64)})
     nt = len(times)
     # compute standard deviation of the visibilities
     sigma = np.nanstd(vis, axis=3)
@@ -1293,7 +1293,7 @@ def refcal_anal(out):
     vis_median = np.nanmedian(vis,axis=3)
     amp_median = np.nanmedian(amp,axis=3)
     snr = amp_median / sigma
-    flagavg = (snr < 1).astype(np.int)  # Will be unity where snr < 1
+    flagavg = (snr < 1).astype(np.int32)  # Will be unity where snr < 1
     flagavg[np.where(np.isnan(snr))] = 1
     out.update({'x':vis_median, 'sigma':sigma, 'flags':flagavg})
     return out

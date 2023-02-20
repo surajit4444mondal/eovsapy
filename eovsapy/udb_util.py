@@ -84,11 +84,11 @@ def avXdata(x, nsec=60):
     nantsnf3 = np.size(x['px'][:,0])
     outpx = np.zeros((nantsnf3, ntnew), dtype=np.float32)
     outpy = np.zeros((nantsnf3, ntnew), dtype=np.float32)
-    uvwarray = np.zeros((3, nblc, ntnew), dtype=np.float)
-    lstarray = np.zeros(ntnew, dtype=np.float)
+    uvwarray = np.zeros((3, nblc, ntnew), dtype=np.float64)
+    lstarray = np.zeros(ntnew, dtype=np.float64)
     nants = np.size(x['delay'][:,0])
-    delayarray = np.zeros((nants, ntnew), dtype=np.float)
-    utarray = np.zeros(ntnew, dtype=np.float)
+    delayarray = np.zeros((nants, ntnew), dtype=np.float32)
+    utarray = np.zeros(ntnew, dtype=np.float64)
     nsjarray = np.zeros(ntnew, dtype=np.int32)
     #step through and average, jc is the time bin that we're working
     #on, njc is the number of shorter intervals inside of this interval
@@ -222,8 +222,8 @@ def udbfile_write(y, ufile_in, ufilename):
     uvout['sdf'] = uv['sdf']
 
     #spectral windows
-    nschan = np.ones(na, dtype=np.long)
-    ischan = np.arange(na, dtype=np.long)+1
+    nschan = np.ones(na, dtype=np.int64)
+    ischan = np.arange(na, dtype=np.int64)+1
     uvout.add_var('nschan', 'i')
     uvout['nschan'] = nschan
     uvout.add_var('ischan', 'i')
@@ -237,12 +237,12 @@ def udbfile_write(y, ufile_in, ufilename):
     # add a variable for that, and one for integration time
     if 'nsamples' in list(y.keys()):
         #Add a variable for delta_time in seconds
-        dtsec = np.float(np.max(y['nsamples']))  # This will typically be 60.0
+        dtsec = np.float64(np.max(y['nsamples']))  # This will typically be 60.0
         uvout.add_var('inttime', 'r')
         uvout['inttime'] = dtsec
         uvout.add_var('nsamples', 'i')
         # Array of number of 1-s samples in each interval
-        uvout['nsamples'] = y['nsamples']
+        uvout['nsamples'] = y['nsamples'].astype(np.int64)
 
     #define the record variables here
     uvout.add_var('ut', 'd')
@@ -382,10 +382,10 @@ def readXdata(filename, filter=False, desat=False):
     outx = ma.masked_array(outx0, mask = omask)
     i0array = np.zeros((nblc, utcount), dtype = np.int32)
     j0array = np.zeros((nblc, utcount), dtype = np.int32)
-    outpx = np.zeros((3*nf*nants, utcount), dtype=np.float)
-    outpy = np.zeros((3*nf*nants, utcount), dtype=np.float)
-    uvwarray = np.zeros((3, nblc, utcount), dtype=np.float)
-    delayarray = np.zeros((nants, utcount), dtype=np.float)
+    outpx = np.zeros((3*nf*nants, utcount), dtype=np.float64)
+    outpy = np.zeros((3*nf*nants, utcount), dtype=np.float64)
+    uvwarray = np.zeros((3, nblc, utcount), dtype=np.float64)
+    delayarray = np.zeros((nants, utcount), dtype=np.float64)
     #lists for time arrays
     utarray = []
     timearray = []
@@ -577,7 +577,7 @@ def autocorr_desat(out):
 #    # Modify measured power to correct for variable science-channel bandwidth
 #    for i in range(nf):
 #        bnd = out['band'][i]
-#        n = np.float(len(np.where(out['band'] == bnd)[0]))
+#        n = np.float64(len(np.where(out['band'] == bnd)[0]))
 #        Px[i] *= n/n0
 #        Py[i] *= n/n0
     Px = Px[:,:,0]*m0/Px[:,:,2]
@@ -802,8 +802,8 @@ def xpx_comp(x):
 
     M = px[:,0,2,0]/1792.0
     
-    xcfrac = np.zeros((nf, 16, nt), dtype = np.float)
-    ycfrac = np.zeros((nf, 16, nt), dtype = np.float)
+    xcfrac = np.zeros((nf, 16, nt), dtype = np.float64)
+    ycfrac = np.zeros((nf, 16, nt), dtype = np.float64)
     i = 0
     i1 = 1
     for kk in range(16):

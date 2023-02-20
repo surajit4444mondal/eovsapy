@@ -39,7 +39,7 @@ def get_xy_corr(out, doplot=True):
 
     fghz = out[0]['fghz']
     nf = len(fghz)
-    dph = np.zeros((14,nf),np.float)
+    dph = np.zeros((14,nf),np.float64)
     # Determine xi_rot
     xi2 = ph0[:,2] - ph0[:,0] + ph0[:,3] - ph0[:,1]  # This is 2 * xi, measured separately on each of 13 antennas
     xi_rot = np.unwrap(np.angle(np.sum(np.exp(1j*xi2),0)))/2.   # Very clever average does not suffer from wrapping issues
@@ -340,7 +340,7 @@ def sat_xy_corr(out0, out1, band=0, ant_str='ant1-13', doplot=True):
     fstart = (band+32)*0.325 + 1.1 - 0.025
     fghz = np.linspace(fstart,fstart+0.400,4096)
     nf = len(fghz)
-    dph = np.zeros((nant+1,nf),np.float)
+    dph = np.zeros((nant+1,nf),np.float64)
     # Determine xi_rot
     xi2 = ph0[:,2] - ph0[:,0] + ph0[:,3] - ph0[:,1]  # This is 2 * xi, measured separately on each of 13 antennas
     xi_rot = lobe(np.unwrap(np.angle(np.sum(np.exp(1j*xi2),0)))/2.)   # Very clever average does not suffer from wrapping issues

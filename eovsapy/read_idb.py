@@ -166,10 +166,10 @@ import copy
     # nbl = nants*(nants-1)//2
     # outa = np.zeros((nants,npol,nf,nt),dtype=np.complex64)  # Auto-correlations
     # outx = np.zeros((nbl,npol,nf,nt),dtype=np.complex64)  # Cross-correlations
-    # #outp = np.zeros((nants,2,nf,600),dtype=np.float)
-    # #outp2 = np.zeros((nants,2,nf,600),dtype=np.float)
-    # #outm = np.zeros((nants,2,nf,600),dtype=np.int)
-    # uvwarray = np.zeros((nbl,nt,3),dtype=np.float)
+    # #outp = np.zeros((nants,2,nf,600),dtype=np.float64)
+    # #outp2 = np.zeros((nants,2,nf,600),dtype=np.float64)
+    # #outm = np.zeros((nants,2,nf,600),dtype=np.int64)
+    # uvwarray = np.zeros((nbl,nt,3),dtype=np.float64)
     # timearray = []
     # lstarray = []
     # l = -1
@@ -299,10 +299,10 @@ def readXdata(filename, filter=False, tp_only=False, src=None, desat=False, nmax
     if not tp_only:
         outa = np.zeros((nants,npol,nf,nmax),dtype=np.complex64)  # Auto-correlations
         outx = np.zeros((nbl,npol,nf,nmax),dtype=np.complex64)  # Cross-correlations
-    outp = np.zeros((nants,2,nf,nmax),dtype=np.float)
-    outp2 = np.zeros((nants,2,nf,nmax),dtype=np.float)
-    outm = np.zeros((nants,2,nf,nmax),dtype=np.int)
-    uvwarray = np.zeros((nbl,nmax,3),dtype=np.float)
+    outp = np.zeros((nants,2,nf,nmax),dtype=np.float64)
+    outp2 = np.zeros((nants,2,nf,nmax),dtype=np.float64)
+    outm = np.zeros((nants,2,nf,nmax),dtype=np.int64)
+    uvwarray = np.zeros((nbl,nmax,3),dtype=np.float64)
     timearray = []
     lstarray = []
     l = -1
@@ -485,7 +485,7 @@ def autocorr_desat(out):
 #    # Modify measured power to correct for variable science-channel bandwidth
 #    for i in range(nf):
 #        bnd = out['band'][i]
-#        n = np.float(len(np.where(out['band'] == bnd)[0]))
+#        n = np.float64(len(np.where(out['band'] == bnd)[0]))
 #        Px[:,i] *= n/n0
 #        Py[:,i] *= n/n0
     x = np.log10(Px)
@@ -564,9 +564,9 @@ def readXdatmp(filename):
     nbl = nants*(nants-1)//2
     outa = np.zeros((nants,npol,nf,600),dtype=np.complex64)  # Auto-correlations
     outx = np.zeros((nbl,npol,nf,600),dtype=np.complex64)  # Cross-correlations
-    outp = np.zeros((nants,2,nf,600),dtype=np.float)
-    outp2 = np.zeros((nants,2,nf,600),dtype=np.float)
-    outm = np.zeros((nants,2,nf,600),dtype=np.int)
+    outp = np.zeros((nants,2,nf,600),dtype=np.float64)
+    outp2 = np.zeros((nants,2,nf,600),dtype=np.float64)
+    outm = np.zeros((nants,2,nf,600),dtype=np.int64)
     uvwarray = []
     timearray = []
     l = -1

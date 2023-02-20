@@ -114,6 +114,8 @@
 #      Multiple changes to bring this routine into the eovsapy Python 3 package.
 #   2022-05-22 DG
 #      Many further changes to deal with multiple databases inluding the cloud database.
+#   2023-01-06  DG
+#      Fixed a number of issues with read_calX() [and commented out unused read_cal_xmlX()]
 
 import struct, sys, os
 from .util import Time, extract
@@ -1124,98 +1126,98 @@ def read_cal_xml(caltype, t=None):
             return xmldict, thisver
 
 
-def read_cal_xmlX(caltype, t=None, verbose=True, neat=False, gettime=False):
-    ''' Read the calibration type definition xml record of the given type, for the 
-        given time or time-range (as a Time() object), or for the current time if None.
-        :param caltype: 
-        :param t: 
-        :param verbose: 
-        :param neat: If True, throw away the obsolete records if t is time range.
-        Returns a dictionary of look-up information and its internal version.  A side-effect
-        is that a file /tmp/type<n>.xml is created, where <n> is the type.
-    '''
-    if t is None:
-        t = Time.now()
-
-    try:
-        if len(t) >= 2:
-            timestamp = [int(ll.lv) for ll in t]
-            timestamp = [timestamp[0], timestamp[-1]]
-        tislist = True
-    except:
-        timestamp = int(t.lv)  # Given (or current) time as LabVIEW timestamp
-        tislist = False
-
-    typdict = cal_types()
-    try:
-        typinfo = typdict[caltype]
-    except:
-        print('Type', caltype, 'not found in type definition dictionary.')
-        return {}, None
-    cnxn, cursor = dbutil.get_cursor()
-    if str(type(cursor)).find('pyodbc') == -1:
-        query1 = 'set textsize 2147483647 select '
-        query2 = ' limit 1'
-    else:
-        query1 = 'set textsize 2147483647 select top 1 '
-        query2 = ''
-    # Read type definition XML from abin table
-    if tislist:
-        query = 'select * from abin where Version = ' + str(caltype) + '.0 and Timestamp >= ' + str(
-            timestamp[0]) + ' and Timestamp <= ' + str(
-            timestamp[1]) + ' order by Timestamp desc, Id desc'
-    else:
-        query = query1+'* from abin where Version = ' + str(caltype) + '.0 and Timestamp <= ' + str(
-            timestamp) + ' order by Timestamp desc, Id desc'+query2
-    sqldict, msg = dbutil.do_query(cursor, query)
-    cnxn.close()
-    if msg == 'Success':
-        if len(sqldict) == 0:
-            if verbose:
-                # This type of xml file does not yet exist in the database, so mark it for adding
-                print('Type', caltype, 'not defined in abin table.')
-            return {}, None
-        else:
-            if tislist:
-                tlist = [Time(ll, format='lv').iso for ll in sqldict['Timestamp']]
-                tlistc = sorted(list(set(tlist)), reverse=True)
-                if neat:
-                    idxs = [tlist.index(ll) for ll in tlistc]
-                else:
-                    idxs = list(range(len(sqldict['Timestamp'])))
-                if verbose:
-                    print('{} records are found in {} ~ {}.'.format(len(idxs), t[0].iso, t[-1].iso))
-                    for idx, ll in enumerate(idxs):
-                        t = Time(sqldict['Timestamp'][ll], format='lv')
-                        ver = sqldict['Version'][ll]
-                        print('{} ---> ver {} {}'.format(idx + 1, ver, t.iso))
-                xml, ver = [], []
-                for idx, ll in enumerate(idxs):
-                    # There is one, so read it and the corresponding binary data
-                    buf = sqldict['Bin'][ll]  # Binary representation of xml file
-                    xmlfile = '/tmp/type' + str(caltype) + '_tmp.xml'
-                    f = open(xmlfile, 'wb')
-                    f.write(buf)
-                    f.close()
-                    xmldict, thisver = read_xml2.xml_ptrs(xmlfile)
-                    xml.append(xmldict)
-                    ver.append(thisver)
-                os.system('rm -rf {}'.format(xmlfile))
-                if gettime:
-                    ts = [tlist[ll] for ll in idxs]
-                    return xml, ver, ts
-                else:
-                    return xml, ver
-            else:
-                # There is one, so read it and the corresponding binary data
-                buf = sqldict['Bin'][0]  # Binary representation of xml file
-                xmlfile = '/tmp/type' + str(caltype) + '.xml'
-                f = open(xmlfile, 'wb')
-                f.write(buf)
-                f.close()
-                xmldict, thisver = read_xml2.xml_ptrs(xmlfile)
-                return xmldict, thisver
-
+#def read_cal_xmlX(caltype, t=None, verbose=True, neat=False, gettime=False):
+#   ''' Read the calibration type definition xml record of the given type, for the 
+#       given time or time-range (as a Time() object), or for the current time if None.
+#       :param caltype: 
+#       :param t: 
+#       :param verbose: 
+#       :param neat: If True, throw away the obsolete records if t is time range.
+#       Returns a dictionary of look-up information and its internal version.  A side-effect
+#       is that a file /tmp/type<n>.xml is created, where <n> is the type.
+#   '''
+#   if t is None:
+#       t = Time.now()
+#
+#   try:
+#       if len(t) >= 2:
+#           timestamp = [int(ll.lv) for ll in t]
+#           timestamp = [timestamp[0], timestamp[-1]]
+#       tislist = True
+#   except:
+#       timestamp = int(t.lv)  # Given (or current) time as LabVIEW timestamp
+#       tislist = False
+#
+#   typdict = cal_types()
+#   try:
+#       typinfo = typdict[caltype]
+#   except:
+#       print('Type', caltype, 'not found in type definition dictionary.')
+#       return {}, None
+#   cnxn, cursor = dbutil.get_cursor()
+#   if str(type(cursor)).find('pyodbc') == -1:
+#       query1 = 'select '
+#       query2 = ' limit 1'
+#   else:
+#       query1 = 'set textsize 2147483647 select top 1 '
+#       query2 = ''
+#   # Read type definition XML from abin table
+#   if tislist:
+#       query = 'select * from abin where Version = ' + str(caltype) + '.0 and Timestamp between ' + str(
+#           timestamp[0]) + ' and ' + str(
+#           timestamp[1]) + ' order by Timestamp desc, Id desc'
+#   else:
+#       query = query1+'* from abin where Version = ' + str(caltype) + '.0 and Timestamp between ' + str(
+#           timestamp[0]) + ' and ' + str(
+#           timestamp[1]) + ' order by Timestamp desc, Id desc'+query2
+#   sqldict, msg = dbutil.do_query(cursor, query)
+#   cnxn.close()
+#   if msg == 'Success':
+#       if len(sqldict) == 0:
+#           if verbose:
+#               # This type of xml file does not yet exist in the database, so mark it for adding
+#               print('Type', caltype, 'not defined in abin table.')
+#           return {}, None
+#       else:
+#           if tislist:
+#               tlist = [Time(ll, format='lv').iso for ll in sqldict['Timestamp']]
+#               tlistc = sorted(list(set(tlist)), reverse=True)
+#               if neat:
+#                   idxs = [tlist.index(ll) for ll in tlistc]
+#               else:
+#                   idxs = list(range(len(sqldict['Timestamp'])))
+#               if verbose:
+#                   print('{} records are found in {} ~ {}.'.format(len(idxs), t[0].iso, t[-1].iso))
+#                   for idx, ll in enumerate(idxs):
+#                       t = Time(sqldict['Timestamp'][ll], format='lv')
+#                       ver = sqldict['Version'][ll]
+#                       print('{} ---> ver {} {}'.format(idx + 1, ver, t.iso))
+#               xml, ver = [], []
+#               for idx, ll in enumerate(idxs):
+#                   # There is one, so read it and the corresponding binary data
+#                   buf = sqldict['Bin'][ll]  # Binary representation of xml file
+#                   xmlfile = '/tmp/type' + str(caltype) + '_tmp.xml'
+#                   f = open(xmlfile, 'wb')
+#                   f.write(buf)
+#                   f.close()
+#                   xmldict, thisver = read_xml2.xml_ptrs(xmlfile)
+#                   xml.append(xmldict)
+#                   ver.append(thisver)
+#               os.system('rm -rf {}'.format(xmlfile))
+#               if gettime:
+#                   ts = [tlist[ll] for ll in idxs]
+#                   return xml, ver, ts
+#               else:
+#                   return xml, ver
+#           else:
+#               # There is one, so read it and the corresponding binary data
+#               buf = sqldict['Bin'][0]  # Binary representation of xml file
+#               xmlfile = '/tmp/type' + str(caltype) + '.xml'
+#               f = open(xmlfile, 'wb')
+#               f.write(buf)
+#               f.close()
+#               xmldict, thisver = read_xml2.xml_ptrs(xmlfile)
+#               return xmldict, thisver
 
 def read_cal(caltype, t=None, verbose=False):
     ''' Read the calibration data of the given type, for the given time (as a Time() object),
@@ -1297,24 +1299,26 @@ def read_calX(caltype, t=None, verbose=True, neat=False, gettime=False, reverse=
     typdict = cal_types()
     cnxn, cursor = dbutil.get_cursor()
     if str(type(cursor)).find('pyodbc') == -1:
-        query1 = 'set textsize 2147483647 select '
+        query1 = 'select '
         query2 = ' limit 1'
     else:
         query1 = 'set textsize 2147483647 select top 1 '
         query2 = ''
 
     if xmldict != {}:
+        vers = caltype + ver/10.
+        ver1 = vers - 0.05
+        ver2 = vers + 0.05
         if tislist:
-            query = 'set textsize 2147483647 select * from abin where Version = ' + str(
-                caltype + ver / 10.) + ' and Timestamp >= ' + str(timestamp[0]) + ' and Timestamp <= ' + str(
-                timestamp[1]) + ' order by Timestamp desc, Id desc'
-        else:
             if reverse:
-                query = query1+'* from abin where Version = ' + str(
-                    caltype + ver / 10.) + ' and Timestamp >= ' + str(timestamp) + ' order by Timestamp asc, Id desc'+query2
+                query = query1 + '* from abin where Version between ' + str(ver1) + ' and ' + str(
+                        ver2) + ' and Timestamp between ' + str(timestamp[0]) + ' and ' + str(timestamp[1]) + ' order by Timestamp asc, Id desc'
             else:
-                query = query1+'* from abin where Version = ' + str(
-                    caltype + ver / 10.) + ' and Timestamp <= ' + str(timestamp) + ' order by Timestamp desc, Id desc'+query2
+                query = query1 + '* from abin where Version between ' + str(ver1) + ' and ' + str(
+                        ver2) + ' and Timestamp between ' + str(timestamp[0]) + ' and ' + str(timestamp[1]) + ' order by Timestamp desc, Id desc'            
+        else:
+            query = query1 + '* from abin where Version between ' + str(ver1) + ' and ' + str( 
+                        ver2) + ' and Timestamp <= ' + str(timestamp) + ' order by Timestamp desc, Id desc'+query2
 
         sqldict, msg = dbutil.do_query(cursor, query)
         cnxn.close()
@@ -1325,14 +1329,14 @@ def read_calX(caltype, t=None, verbose=True, neat=False, gettime=False, reverse=
                     print(query)
                 return {}, None
             if tislist:
-                tlist = [Time(extract(str(ll), xmldict['Timestamp']), format='lv').iso for ll in
+                tlist = [Time(extract(ll, xmldict['Timestamp']), format='lv').iso for ll in
                          sqldict['Bin']]
                 tlistc = sorted(list(set(tlist)), reverse=True)
                 if neat:
                     idxs = [tlist.index(ll) for ll in tlistc]
                 else:
                     idxs = list(range(len(sqldict['Timestamp'])))
-                buf = [str(sqldict['Bin'][ll]) for ll in idxs]
+                buf = sqldict['Bin'][idxs]
                 if verbose:
                     print('{} records are found in {} ~ {}.'.format(len(buf), t[0].iso, t[-1].iso))
                     for idx, ll in enumerate(buf):
@@ -1708,18 +1712,18 @@ def xy_phasecal2sql(xyphase_dict, t=None):
     buf += struct.pack('d', ver)
     # Write frequency array
     buf += struct.pack('I', 500)  # Length of frequency array
-    flist = np.zeros(500,np.float)
+    flist = np.zeros(500,np.float64)
     flist[:nf] = xyphase_dict['fghz']
     buf += struct.pack('500f', *flist)
     # Write xi_rot array
     buf += struct.pack('I',500)  # Length of xi_rot array
-    xi_rot = np.zeros(500,np.float)
+    xi_rot = np.zeros(500,np.float64)
     xi_rot[:nf] = xyphase_dict['xi_rot']
     buf += struct.pack('500f', *xi_rot)
     # Write xyphase
     buf += struct.pack('I', 14)  # Length of antenna array
     buf += struct.pack('I', 500)  # Length of frequency array
-    xyout = np.zeros((14,500),np.float)
+    xyout = np.zeros((14,500),np.float64)
     xyout[:,:nf] = xyphase_dict['xyphase']
     for i in range(14):
         buf += struct.pack('500f', *xyout[i])
@@ -2100,7 +2104,7 @@ def fem_attn_val2sql(attn, ver=1.0, t=None):
     buf += struct.pack('d', ver)
     # Write frequencies
     buf += struct.pack('f', 500) # Length of frequency array
-    flist = np.zeros(500,np.float)
+    flist = np.zeros(500,np.float64)
     flist[:nfrq] = attn[0]['fghz']
     buf += struct.pack('500f', *flist)
 

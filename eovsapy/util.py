@@ -1177,7 +1177,7 @@ def get_idbdir(t=None, usejsonfile=True):
         dbarr = []
         datekey = list(eovsadb['EOVSADB'].keys())
         datetobj = Time(datekey)
-        dtype = [('date', 'S10'), ('tobj', object), ('path', object)]
+        dtype = [('date', 'U10'), ('tobj', object), ('path', object)]
         for idx, k in enumerate(datekey):
             dbarr.append((k, datetobj[idx], eovsadb['EOVSADB'][k]))
         dbarr = np.array(dbarr, dtype=dtype)

@@ -406,7 +406,7 @@ def apply_fem_level(data, skycal=None, gctime=None):
     if gctime is None:
         gctime = trange[0]
     # Get time cadence
-    dt = np.int(np.round(np.median(data['time'][1:] - data['time'][:-1]) * 86400))
+    dt = np.int_(np.round(np.median(data['time'][1:] - data['time'][:-1]) * 86400))
     if dt == 1: dt = None
     # Get the FEM levels of the requested timerange
     src_lev = get_fem_level(trange,dt)   # solar gain state for timerange of file
@@ -544,7 +544,7 @@ def apply_gain_corr(data, tref=None):
     # Get timerange from data
     trange = Time([data['time'][0],data['time'][-1]],format='jd')
     # Get time cadence
-    dt = np.int(np.round(np.median(data['time'][1:] - data['time'][:-1]) * 86400))
+    dt = np.int_(np.round(np.median(data['time'][1:] - data['time'][:-1]) * 86400))
     if dt == 1: dt = None
     # Get the gain state of the requested timerange
     src_gs = get_gain_state(trange,dt)   # solar gain state for timerange of file
