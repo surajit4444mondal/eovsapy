@@ -484,7 +484,7 @@ def solpntanal(t, udb=False, auto=False, find=True, desat=False):
     pnt = solpnt.get_solpnt(t, find=find)
     proc = solpnt.process_solpnt(pnt)
     trange = Time([pnt['Timestamp'],pnt['Timestamp']+300.],format='lv')
-    skycal = None
+    skycal = {}
     if trange[0].mjd < 57450:
         if auto: print("Warning: 'auto' keyword does nothing for older data.  Keyword ignored.")
         otp = dump_tsys.rd_miriad_tsys(trange,udb=udb)
@@ -498,7 +498,7 @@ def solpntanal(t, udb=False, auto=False, find=True, desat=False):
         # for a far off-Sun background measurement.
         skycal = skycal_anal(trange[0], do_plot=False, last=True, desat=desat)
         otp = dump_tsys.rd_miriad_tsys_16(trange, udb=udb, auto=auto, tref=trange[0], skycal=skycal, desat=desat)
-    if skycal:
+    if skycal != {}:
         newskycal = deepcopy(skycal)
         if auto:
             # Modify the skycal to put the auto information into the standard location
@@ -560,7 +560,11 @@ def skycal_anal(t=None, do_plot=False, last=False, desat=False):
         # This should be almost as good for receiver noise subtraction as a true SKYCAL
         from .attncal import get_attncal
         outdict = get_attncal(t)
-        return {'rcvr_bgd': outdict[0]['rcvr'], 'rcvr_bgd_auto': outdict[0]['rcvr_auto']}
+        if outdict[0] == {}:
+            print('SKYCAL_ANAL: No available GAINCALTEST scans.  Returning {} result.')
+            return outdict
+        timestamp = int(Time(outdict[0]['time'],format='jd').lv)
+        return {'timestamp':timestamp, 'fghz':outdict[0]['fghz'], 'rcvr_bgd': outdict[0]['rcvr'], 'rcvr_bgd_auto': outdict[0]['rcvr_auto']}
     mjd = t.mjd // 1
     trange = Time([mjd+0.5,mjd+1.25],format='mjd')
     proj = dump_tsys.findfile(trange,'SKYCALTEST')
@@ -579,6 +583,7 @@ def skycal_anal(t=None, do_plot=False, last=False, desat=False):
         lev = get_fem_level(skytrange)
         # Get indexes to common times
         idx1, idx2 = common_val_idx(lev['times'].jd,out['time'])
+        timestamp = int(Time(out['time'][idx2[0]],format='jd').lv)
         for i in range(nant):
             for j in range(npol):
                 idx0, = np.where(lev[hvlev[j]][i,idx1] == 0)   # 0 dB
@@ -621,8 +626,12 @@ def skycal_anal(t=None, do_plot=False, last=False, desat=False):
         # This should be almost as good for receiver noise subtraction as a true SKYCAL
         from .attncal import get_attncal
         outdict = get_attncal(t)
-        return {'rcvr_bgd': outdict[0]['rcvr'], 'rcvr_bgd_auto': outdict[0]['rcvr_auto']}
-    return {'offsun': offsun, 'rcvr_bgd': rcvr, 'offsun_auto': offsun_auto, 'rcvr_bgd_auto': rcvr_auto}
+        if outdict[0] == {}:
+            print('SKYCAL_ANAL: No available SKYCAL or GAINCALTEST scans.  Returning {} result.')
+            return outdict
+        timestamp = int(Time(outdict[0]['time'],format='jd').lv)
+        return {'timestamp':timestamp, 'fghz':outdict[0]['fghz'], 'rcvr_bgd': outdict[0]['rcvr'], 'rcvr_bgd_auto': outdict[0]['rcvr_auto']}
+    return {'timestamp':timestamp, 'fghz':out['fghz'], 'offsun': offsun, 'rcvr_bgd': rcvr, 'offsun_auto': offsun_auto, 'rcvr_bgd_auto': rcvr_auto}
     
 def sp_get_calfac(x,y, do_plot=True):
     ''' Reads the RSTN/Penticton flux, fits to the observed frequencies, and applies

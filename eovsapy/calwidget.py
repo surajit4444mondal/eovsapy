@@ -763,7 +763,7 @@ class App():
                 self.ab_text.set_text('')
                 #if not 'pdiff' in data.keys():
                 if self.ref_selected:
-                    data = phase_diff(data,self.pc_dictlist[self.ref_selected])
+                    data = self.phase_diff(data,self.pc_dictlist[self.ref_selected])
                 # Plot summary plots
                 for i in range(13):
                     for j in range(2):
@@ -1057,7 +1057,7 @@ class App():
             phacal = fix_time_drift(phacal)
         out = refcal_anal(phacal)
         # Now calculate the phase difference wrt the appropriate refcal
-        pcout = phase_diff(out,self.pc_dictlist[self.ref_selected])
+        pcout = self.phase_diff(out,self.pc_dictlist[self.ref_selected])
         self.pc_dictlist[i].update(out)
         self.saved[i] = False  # Mark as unsaved
         self.pc_scanbox.delete(2,Tk.END)
@@ -1075,65 +1075,65 @@ class App():
         self.scan_select()
         self.status.config(text = 'Status: Analysis Complete.')
         
-def phase_diff(phacal, refcal):
-    ''' Finds the delay slope (phase slope is 2*pi*fghz) of the difference
-        between the input phase calibration and the input reference calibration.
-        Adds some keywords to the phacal dict.  This does NOT fit for a phase
-        offset, but still returns offsets of zero, in case this is needed in
-        the future.  The sflags keyword is different from flags, because sflags
-        can be set for either missing phase calibrations or missing reference
-        calibrations.  The slope values are zero for entries flagged in sflags.
-        
-        2018-02-14  DG 
-          Added brute-force coarse delay calculation
-    '''
-    def mbdfunc0(fghz, mbd):
-        # fghz: frequency in GHz
-        # ph0 = 0: phase offset identically set to zero (not fitted)
-        # mbd: multi-band delay associated with the phase_phacal - phase_refcal in ns
-        return 2. * np.pi * fghz * mbd
-        
-    def coarse_delay(fghz,phz):
-        # Do a coarse search of delays corresponding to phase errors ranging from -0.1 to 0.1
-        # Returns the delay value with the minimum sigma
-        #tvals = np.arange(-0.1,0.1,0.01)
-        #sigma = []
-        #for t in tvals:
-        #    sigma.append(np.std(lobe(phz - 2*np.pi*t*fghz)))
-        #return tvals[np.argmin(np.array(sigma))]
-        
-        # Replace old coarse_delay (commented code above) with new lin_phase_fit function
-        pout = lin_phase_fit(fghz,phz)
-        return pout[1]/(2*np.pi)
-        
-    from scipy.optimize import curve_fit
-    
-    fghz = phacal['fghz']
-    if len(fghz) != len(refcal['fghz']):
-        self.status.config(text = 'Status: Phase and Reference calibrations have different frequencies.  No action taken.')
+    def phase_diff(self, phacal, refcal):
+        ''' Finds the delay slope (phase slope is 2*pi*fghz) of the difference
+            between the input phase calibration and the input reference calibration.
+            Adds some keywords to the phacal dict.  This does NOT fit for a phase
+            offset, but still returns offsets of zero, in case this is needed in
+            the future.  The sflags keyword is different from flags, because sflags
+            can be set for either missing phase calibrations or missing reference
+            calibrations.  The slope values are zero for entries flagged in sflags.
+
+            2018-02-14  DG
+              Added brute-force coarse delay calculation
+        '''
+        def mbdfunc0(fghz, mbd):
+            # fghz: frequency in GHz
+            # ph0 = 0: phase offset identically set to zero (not fitted)
+            # mbd: multi-band delay associated with the phase_phacal - phase_refcal in ns
+            return 2. * np.pi * fghz * mbd
+
+        def coarse_delay(fghz,phz):
+            # Do a coarse search of delays corresponding to phase errors ranging from -0.1 to 0.1
+            # Returns the delay value with the minimum sigma
+            #tvals = np.arange(-0.1,0.1,0.01)
+            #sigma = []
+            #for t in tvals:
+            #    sigma.append(np.std(lobe(phz - 2*np.pi*t*fghz)))
+            #return tvals[np.argmin(np.array(sigma))]
+
+            # Replace old coarse_delay (commented code above) with new lin_phase_fit function
+            pout = lin_phase_fit(fghz,phz)
+            return pout[1]/(2*np.pi)
+
+        from scipy.optimize import curve_fit
+
+        fghz = phacal['fghz']
+        if len(fghz) != len(refcal['fghz']):
+            self.status.config(text = 'Status: Phase and Reference calibrations have different frequencies.  No action taken.')
+            return phacal
+        dpha = np.angle(phacal['x'][:,:2]) - np.angle(refcal['x'][:,:2])
+        flags = np.logical_or(phacal['flags'][:,:2],refcal['flags'][:,:2]).astype(np.int32)
+        amp_pc = np.abs(phacal['x'][:,:2])
+        amp_rc = np.abs(refcal['x'][:,:2])
+        sigma = ((phacal['sigma'][:,:2]/amp_pc)**2. + (refcal['sigma'][:,:2]/amp_rc)**2)**0.5
+        slopes = np.zeros((15,2),np.float64)
+        offsets = np.zeros((15,2),np.float64)
+        flag = np.zeros((15,2),np.float64)
+        for ant in range(13):
+            for pol in range(2):
+                good, = np.where(flags[ant,pol] == 0)
+                if len(good) > 3:
+                    x = fghz[good]
+                    t = coarse_delay(x,dpha[ant,pol,good])   # Get coarse delay
+                    y = np.unwrap(lobe(dpha[ant,pol,good] - 2*np.pi*t*x))  # Correct for coarse delay
+                    p, pcov = curve_fit(mbdfunc0, x, y, p0=[0.], sigma=sigma[ant,pol,good], absolute_sigma=False)
+                    slopes[ant,pol] = p + t  # Add back coarse delay
+                    flag[ant,pol] = 0
+                else:
+                    flag[ant,pol] = 1
+        phacal.update({'mbd':slopes, 'mbd_flag':flag, 'flags': flags, 'offsets':offsets, 'pdiff':dpha})
         return phacal
-    dpha = np.angle(phacal['x'][:,:2]) - np.angle(refcal['x'][:,:2])
-    flags = np.logical_or(phacal['flags'][:,:2],refcal['flags'][:,:2]).astype(np.int32)
-    amp_pc = np.abs(phacal['x'][:,:2])
-    amp_rc = np.abs(refcal['x'][:,:2])
-    sigma = ((phacal['sigma'][:,:2]/amp_pc)**2. + (refcal['sigma'][:,:2]/amp_rc)**2)**0.5
-    slopes = np.zeros((15,2),np.float64)
-    offsets = np.zeros((15,2),np.float64)
-    flag = np.zeros((15,2),np.float64)
-    for ant in range(13):
-        for pol in range(2):
-            good, = np.where(flags[ant,pol] == 0)
-            if len(good) > 3:
-                x = fghz[good]
-                t = coarse_delay(x,dpha[ant,pol,good])   # Get coarse delay 
-                y = np.unwrap(lobe(dpha[ant,pol,good] - 2*np.pi*t*x))  # Correct for coarse delay
-                p, pcov = curve_fit(mbdfunc0, x, y, p0=[0.], sigma=sigma[ant,pol,good], absolute_sigma=False)
-                slopes[ant,pol] = p + t  # Add back coarse delay
-                flag[ant,pol] = 0
-            else:
-                flag[ant,pol] = 1
-    phacal.update({'mbd':slopes, 'mbd_flag':flag, 'flags': flags, 'offsets':offsets, 'pdiff':dpha})
-    return phacal
     
 def findscans(trange):
     '''Identify phasecal scans from UFDB files
