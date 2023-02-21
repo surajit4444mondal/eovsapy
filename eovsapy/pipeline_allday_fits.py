@@ -5,9 +5,9 @@ if __name__ == '__main__':
 
     matplotlib.use("Agg")
 
-    from eovsapy import pipeline_cal as pc
-    from eovsapy import eovsa_fits as ef
-    from eovsapy.util import Time
+    from . import pipeline_cal as pc
+    from . import eovsa_fits as ef
+    from .util import Time
     import glob
     import sys, os
 
