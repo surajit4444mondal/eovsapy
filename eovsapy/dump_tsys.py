@@ -104,7 +104,7 @@ def file_list(trange, udb=False):
         mjd1, mjd2 = trange.mjd.astype('int')
         if mjd2 != mjd1:
             if (mjd2 - 1) != mjd1:
-                usage('Second date must differ from first by at most 1 day')
+                print('Second date must differ from first by at most 1 day')
             else:
                 if folder[:22] == '/common/archive/data1/eovsa/fits/IDB/':
                     datdir = trange[1].iso[:10].replace('-', '')
@@ -436,7 +436,7 @@ def get_projects(t, nosql=False):
     '''
     if nosql == True:
         return get_projects_nosql(t)
-    from eovsapy import dbutil
+    from . import dbutil
     # timerange is 12 UT to 12 UT on next day, relative to the day in Time() object t
     trange = Time([int(t.mjd) + 12./24,int(t.mjd) + 36./24],format='mjd')
     tstart, tend = trange.lv.astype('str')
@@ -501,7 +501,7 @@ def findfile(trange, scantype='PHASECAL', srcid=None):
     ''' Finds project ID entries from SQL matching scantype, for the give 
         timerange.
     '''
-    from eovsapy.read_idb import get_trange_files
+    from .read_idb import get_trange_files
     t1 = str(trange[0].mjd)
     t2 = str(trange[1].mjd)
     tnow = Time.now()
@@ -576,7 +576,7 @@ def findfiles(trange, projid='PHASECAL', srcid=None):
     projid: String--PROJECTID in UFBD records. Default is PHASECAL
     srcid: String--SOURCEID in UFBD records. Can be a string or a list
     '''
-    from eovsapy import dump_tsys
+    from . import dump_tsys
     fpath = '/data1/eovsa/fits/UDB/' + trange[0].iso[:4] + '/'
     t1 = trange[0].to_datetime()
     t2 = trange[1].to_datetime()
