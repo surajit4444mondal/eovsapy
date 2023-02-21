@@ -63,7 +63,7 @@
 
 import subprocess, time, sys, glob
 import numpy as np
-from eovsapy.util import Time, common_val_idx
+from .util import Time, common_val_idx
 
 
 def file_list(trange, udb=False):
