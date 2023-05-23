@@ -25,5 +25,5 @@ extras['all'] = list(chain.from_iterable(ex_extras.values()))
 setup(
     install_requires=install_requires,
     extras_require=extras,
-    version='0.0.1'
+    version='0.0.2'
 )
