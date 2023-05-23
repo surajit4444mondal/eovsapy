@@ -47,6 +47,8 @@
 #    Handle error-return from dbutil.a14_wscram().
 #  2021-08-09  DG
 #    Change use_date() to consider an observing day as timerange 8:40 UT - 8:40 UT + 1 day
+#  2023-01-07  DG
+#    Added sql2refcalX() and sql2phacalX() routines used by SunCASA.
 #
 
 import matplotlib
@@ -761,7 +763,7 @@ class App():
                 self.ab_text.set_text('')
                 #if not 'pdiff' in data.keys():
                 if self.ref_selected:
-                    data = phase_diff(data,self.pc_dictlist[self.ref_selected])
+                    data = self.phase_diff(data,self.pc_dictlist[self.ref_selected])
                 # Plot summary plots
                 for i in range(13):
                     for j in range(2):
@@ -1055,7 +1057,7 @@ class App():
             phacal = fix_time_drift(phacal)
         out = refcal_anal(phacal)
         # Now calculate the phase difference wrt the appropriate refcal
-        pcout = phase_diff(out,self.pc_dictlist[self.ref_selected])
+        pcout = self.phase_diff(out,self.pc_dictlist[self.ref_selected])
         self.pc_dictlist[i].update(out)
         self.saved[i] = False  # Mark as unsaved
         self.pc_scanbox.delete(2,Tk.END)
@@ -1073,65 +1075,65 @@ class App():
         self.scan_select()
         self.status.config(text = 'Status: Analysis Complete.')
         
-def phase_diff(phacal, refcal):
-    ''' Finds the delay slope (phase slope is 2*pi*fghz) of the difference
-        between the input phase calibration and the input reference calibration.
-        Adds some keywords to the phacal dict.  This does NOT fit for a phase
-        offset, but still returns offsets of zero, in case this is needed in
-        the future.  The sflags keyword is different from flags, because sflags
-        can be set for either missing phase calibrations or missing reference
-        calibrations.  The slope values are zero for entries flagged in sflags.
-        
-        2018-02-14  DG 
-          Added brute-force coarse delay calculation
-    '''
-    def mbdfunc0(fghz, mbd):
-        # fghz: frequency in GHz
-        # ph0 = 0: phase offset identically set to zero (not fitted)
-        # mbd: multi-band delay associated with the phase_phacal - phase_refcal in ns
-        return 2. * np.pi * fghz * mbd
-        
-    def coarse_delay(fghz,phz):
-        # Do a coarse search of delays corresponding to phase errors ranging from -0.1 to 0.1
-        # Returns the delay value with the minimum sigma
-        #tvals = np.arange(-0.1,0.1,0.01)
-        #sigma = []
-        #for t in tvals:
-        #    sigma.append(np.std(lobe(phz - 2*np.pi*t*fghz)))
-        #return tvals[np.argmin(np.array(sigma))]
-        
-        # Replace old coarse_delay (commented code above) with new lin_phase_fit function
-        pout = lin_phase_fit(fghz,phz)
-        return pout[1]/(2*np.pi)
-        
-    from scipy.optimize import curve_fit
-    
-    fghz = phacal['fghz']
-    if len(fghz) != len(refcal['fghz']):
-        self.status.config(text = 'Status: Phase and Reference calibrations have different frequencies.  No action taken.')
+    def phase_diff(self, phacal, refcal):
+        ''' Finds the delay slope (phase slope is 2*pi*fghz) of the difference
+            between the input phase calibration and the input reference calibration.
+            Adds some keywords to the phacal dict.  This does NOT fit for a phase
+            offset, but still returns offsets of zero, in case this is needed in
+            the future.  The sflags keyword is different from flags, because sflags
+            can be set for either missing phase calibrations or missing reference
+            calibrations.  The slope values are zero for entries flagged in sflags.
+
+            2018-02-14  DG
+              Added brute-force coarse delay calculation
+        '''
+        def mbdfunc0(fghz, mbd):
+            # fghz: frequency in GHz
+            # ph0 = 0: phase offset identically set to zero (not fitted)
+            # mbd: multi-band delay associated with the phase_phacal - phase_refcal in ns
+            return 2. * np.pi * fghz * mbd
+
+        def coarse_delay(fghz,phz):
+            # Do a coarse search of delays corresponding to phase errors ranging from -0.1 to 0.1
+            # Returns the delay value with the minimum sigma
+            #tvals = np.arange(-0.1,0.1,0.01)
+            #sigma = []
+            #for t in tvals:
+            #    sigma.append(np.std(lobe(phz - 2*np.pi*t*fghz)))
+            #return tvals[np.argmin(np.array(sigma))]
+
+            # Replace old coarse_delay (commented code above) with new lin_phase_fit function
+            pout = lin_phase_fit(fghz,phz)
+            return pout[1]/(2*np.pi)
+
+        from scipy.optimize import curve_fit
+
+        fghz = phacal['fghz']
+        if len(fghz) != len(refcal['fghz']):
+            self.status.config(text = 'Status: Phase and Reference calibrations have different frequencies.  No action taken.')
+            return phacal
+        dpha = np.angle(phacal['x'][:,:2]) - np.angle(refcal['x'][:,:2])
+        flags = np.logical_or(phacal['flags'][:,:2],refcal['flags'][:,:2]).astype(np.int32)
+        amp_pc = np.abs(phacal['x'][:,:2])
+        amp_rc = np.abs(refcal['x'][:,:2])
+        sigma = ((phacal['sigma'][:,:2]/amp_pc)**2. + (refcal['sigma'][:,:2]/amp_rc)**2)**0.5
+        slopes = np.zeros((15,2),np.float64)
+        offsets = np.zeros((15,2),np.float64)
+        flag = np.zeros((15,2),np.float64)
+        for ant in range(13):
+            for pol in range(2):
+                good, = np.where(flags[ant,pol] == 0)
+                if len(good) > 3:
+                    x = fghz[good]
+                    t = coarse_delay(x,dpha[ant,pol,good])   # Get coarse delay
+                    y = np.unwrap(lobe(dpha[ant,pol,good] - 2*np.pi*t*x))  # Correct for coarse delay
+                    p, pcov = curve_fit(mbdfunc0, x, y, p0=[0.], sigma=sigma[ant,pol,good], absolute_sigma=False)
+                    slopes[ant,pol] = p + t  # Add back coarse delay
+                    flag[ant,pol] = 0
+                else:
+                    flag[ant,pol] = 1
+        phacal.update({'mbd':slopes, 'mbd_flag':flag, 'flags': flags, 'offsets':offsets, 'pdiff':dpha})
         return phacal
-    dpha = np.angle(phacal['x'][:,:2]) - np.angle(refcal['x'][:,:2])
-    flags = np.logical_or(phacal['flags'][:,:2],refcal['flags'][:,:2]).astype(np.int32)
-    amp_pc = np.abs(phacal['x'][:,:2])
-    amp_rc = np.abs(refcal['x'][:,:2])
-    sigma = ((phacal['sigma'][:,:2]/amp_pc)**2. + (refcal['sigma'][:,:2]/amp_rc)**2)**0.5
-    slopes = np.zeros((15,2),np.float64)
-    offsets = np.zeros((15,2),np.float64)
-    flag = np.zeros((15,2),np.float64)
-    for ant in range(13):
-        for pol in range(2):
-            good, = np.where(flags[ant,pol] == 0)
-            if len(good) > 3:
-                x = fghz[good]
-                t = coarse_delay(x,dpha[ant,pol,good])   # Get coarse delay 
-                y = np.unwrap(lobe(dpha[ant,pol,good] - 2*np.pi*t*x))  # Correct for coarse delay
-                p, pcov = curve_fit(mbdfunc0, x, y, p0=[0.], sigma=sigma[ant,pol,good], absolute_sigma=False)
-                slopes[ant,pol] = p + t  # Add back coarse delay
-                flag[ant,pol] = 0
-            else:
-                flag[ant,pol] = 1
-    phacal.update({'mbd':slopes, 'mbd_flag':flag, 'flags': flags, 'offsets':offsets, 'pdiff':dpha})
-    return phacal
     
 def findscans(trange):
     '''Identify phasecal scans from UFDB files
@@ -1315,6 +1317,87 @@ def fix_time_drift(out):
                     pfit = dpdt*out['fghz'][iband]*(out['times']-out['times'][nt//2])
                     out['vis'][iant,ipol,iband] *= np.cos(pfit)-1j*np.sin(pfit)
     return out
+
+def sql2refcalX(trange, *args, **kwargs):
+    ''' Returns SQL refcal calibration records for the given timerange. trange can be either a timestamp or a timerange.'''
+    from . import cal_header as ch
+    from .util import extract
+    caltype = 8
+    xml, bufs = ch.read_calX(caltype, t=trange, *args, **kwargs)
+    if isinstance(bufs, np.ndarray):
+        refcals = []
+        for i, buf in enumerate(bufs):
+            try:
+                ref = extract(buf, xml['Refcal_Real']) + extract(buf, xml['Refcal_Imag']) * 1j
+                flag = extract(buf, xml['Refcal_Flag'])
+                fghz = extract(buf, xml['Fghz'])
+                sigma = extract(buf, xml['Refcal_Sigma'])
+                timestamp = Time(extract(buf, xml['Timestamp']), format='lv')
+                tbg = Time(extract(buf, xml['T_beg']), format='lv')
+                ted = Time(extract(buf, xml['T_end']), format='lv')
+                pha = np.angle(ref)
+                amp = np.absolute(ref)
+                refcals.append({'pha': pha, 'amp': amp, 'flag': flag, 'fghz': fghz, 'sigma': sigma, 'timestamp': timestamp, 't_bg': tbg, 't_ed': ted})
+            except:
+                print('failed to load record {} ---> {}'.format(i + 1, Time(extract(buf, xml['Timestamp']), format='lv').iso))
+        return refcals
+    elif isinstance(bufs, bytes):
+        refcal = extract(bufs, xml['Refcal_Real']) + extract(bufs, xml['Refcal_Imag']) * 1j
+        flag = extract(bufs, xml['Refcal_Flag'])
+        fghz = extract(bufs, xml['Fghz'])
+        sigma = extract(bufs, xml['Refcal_Sigma'])
+        timestamp = Time(extract(bufs, xml['Timestamp']), format='lv')
+        tbg = Time(extract(bufs, xml['T_beg']), format='lv')
+        ted = Time(extract(bufs, xml['T_end']), format='lv')
+        pha = np.angle(refcal)
+        amp = np.absolute(refcal)
+        return {'pha': pha, 'amp': amp, 'flag': flag, 'fghz': fghz, 'sigma': sigma, 'timestamp': timestamp, 't_bg': tbg, 't_ed': ted}
+
+
+def sql2phacalX(trange, *args, **kwargs):
+    '''Supply a timestamp in Time format, return the closest phacal data.
+        If a time range is provided, return records within the time range.'''
+    from . import cal_header as ch
+    from .util import extract
+    xml, bufs = ch.read_calX(9, t=trange, *args, **kwargs)
+    if isinstance(bufs, np.ndarray):
+        phacals = []
+        for i, buf in enumerate(bufs):
+            try:
+                phacal_flag = extract(buf, xml['Phacal_Flag'])
+                fghz = extract(buf, xml['Fghz'])
+                sigma = extract(buf, xml['Phacal_Sigma'])
+                timestamp = Time(extract(buf, xml['Timestamp']), format='lv')
+                tbg = Time(extract(buf, xml['T_beg']), format='lv')
+                ted = Time(extract(buf, xml['T_end']), format='lv')
+                pha = extract(buf, xml['Phacal_Pha'])
+                amp = extract(buf, xml['Phacal_Amp'])
+                tmp = extract(buf, xml['MBD'])
+                poff, pslope = tmp[:, :, 0], tmp[:, :, 1]
+                flag = extract(buf, xml['Flag'])[:, :, 0]
+                t_ref = Time(extract(buf, xml['T_refcal']), format='lv')
+                phacals.append({'pslope': pslope, 't_pha': timestamp, 'flag': flag, 'poff': poff, 't_ref': t_ref,
+                                'phacal': {'pha': pha, 'amp': amp, 'flag': phacal_flag, 'fghz': fghz, 'sigma': sigma, 'timestamp': timestamp,
+                                           't_bg': tbg, 't_ed': ted}})
+            except:
+                print('failed to load record {} ---> {}'.format(i + 1, Time(extract(buf, xml['Timestamp']), format='lv').iso))
+        return phacals
+    elif isinstance(bufs, bytes):
+        phacal_flag = extract(bufs, xml['Phacal_Flag'])
+        fghz = extract(bufs, xml['Fghz'])
+        sigma = extract(bufs, xml['Phacal_Sigma'])
+        timestamp = Time(extract(bufs, xml['Timestamp']), format='lv')
+        tbg = Time(extract(bufs, xml['T_beg']), format='lv')
+        ted = Time(extract(bufs, xml['T_end']), format='lv')
+        pha = extract(bufs, xml['Phacal_Pha'])
+        amp = extract(bufs, xml['Phacal_Amp'])
+        tmp = extract(bufs, xml['MBD'])
+        poff, pslope = tmp[:, :, 0], tmp[:, :, 1]
+        flag = extract(bufs, xml['Flag'])[:, :, 0]
+        t_ref = Time(extract(bufs, xml['T_refcal']), format='lv')
+        return {'pslope': pslope, 't_pha': timestamp, 'flag': flag, 'poff': poff, 't_ref': t_ref,
+                'phacal': {'pha': pha, 'amp': amp, 'flag': phacal_flag, 'fghz': fghz, 'sigma': sigma, 'timestamp': timestamp, 't_bg': tbg,
+                           't_ed': ted}}
 
 app = App()
 
