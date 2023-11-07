@@ -962,7 +962,7 @@ def get_trange_files(trange):
     mjd1, mjd2 = trange.mjd.astype('int')
     if mjd2 != mjd1:
         if (mjd2 - 1) != mjd1:
-            usage('Second date must differ from first by at most 1 day')
+            print('Second date must differ from first by at most 1 day')
         else:
             fstr2 = trange[1].iso
             files2 = glob.glob(folder+'IDB'+fstr2.replace('-','').split()[0]+'*')
