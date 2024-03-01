@@ -24,5 +24,5 @@ chmod 0600 ~/.netrc
 One must reinstall the modified [aipy](https://github.com/HERA-Team/aipy) package from the suncasa git repositories.
 
 ```bash
-pip install git+https://github.com/suncasa/aipy.git
+pip install git+https://github.com/suncasa/aipy-eovsa.git
 ```
