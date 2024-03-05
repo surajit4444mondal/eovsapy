@@ -27,7 +27,7 @@ Contact sijie.yu@njit.edu to request the `<username>`, `<account_name>`, and `<p
 
 2. **Create a `.netrc` File**:
 
-   Create a `.netrc` file in your home directory with the following contents, replacing `<username>`, `<account_name>`, and `<password>` with the actual database credentials:
+   Create a `.netrc` file in your home directory (`$HOME`) with the following contents, replacing `<username>`, `<account_name>`, and `<password>` with the actual database credentials:
 
    ```bash
    machine eovsa-db0.cgb0fabhwkos.us-west-2.rds.amazonaws.com
