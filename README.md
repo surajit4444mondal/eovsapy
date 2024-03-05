@@ -44,15 +44,3 @@ Contact sijie.yu@njit.edu to request the `<username>`, `<account_name>`, and `<p
    chmod 0600 ~/.netrc
    ```
 
-### Installing Dependencies
-
-EOVSAPY requires a modified version of the [aipy](https://github.com/HERA-Team/aipy) package. It is crucial to install this specific version from the OVRO-EOVSA repositories for EOVSAPY to function correctly.
-
-Run the following command to install the required version of aipy:
-
-```bash
-pip install git+https://github.com/ovro-eovsa/aipy-eovsa.git
-```
-
-**Note**: This step is crucial for the proper functionality of EOVSAPY. Ensure that this package is correctly installed.
-
