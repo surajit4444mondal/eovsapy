@@ -43,4 +43,3 @@ Contact sijie.yu@njit.edu to request the `<username>`, `<account_name>`, and `<p
    ```bash
    chmod 0600 ~/.netrc
    ```
-
