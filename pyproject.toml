@@ -43,6 +43,7 @@ dependencies = [
     "tk",
     "tqdm",
     "urllib3",
+    "healpy"
 ]
 [project.optional-dependencies]
 dev = [
