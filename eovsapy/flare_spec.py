@@ -10,8 +10,43 @@
 #   Slight change to make this work for pre-2019 data.
 # 2022-May-28  DG
 #   Allow the input to calIDB to be a filename or list.
-# 2024-Mar-27  DG
-#   Updated with changes from the Python 2.7 version, plus bug fixes.
+# 2024-Mar-15 SY
+#   Add the docstring for the module.
+
+"""
+FLARE_SPEC
+
+This module contains a set of functions designed to facilitate the creation of overview spectrograms for solar flares.
+
+Functions:
+----------
+sanitize_filename(name: str) -> str:
+    Sanitizes the filename by replacing characters that might be invalid or problematic in file names across different operating systems.
+
+calIDB(trange: Union[List[str], str]) -> List[str]:
+    Calibrates and corrects saturation of relevant IDB files based on the provided time range or file list.
+
+inspect(files: List[str], vmin: float = 0.1, vmax: float = 10, ant_str: str = 'ant1-13', srcchk: bool = True) -> Tuple[dict, np.ndarray]:
+    Reads and displays a log-scaled median spectrogram for quick check of the calibrated IDB files.
+
+combine_subtracted(out: dict, bgidx: List[int] = [100,110], vmin: float = 0.1, vmax: float = 10, ant_str: str = 'ant1-13') -> np.ndarray:
+    Recreates the spectrogram from the output of inspect() after subtracting the background.
+
+spec_data_to_fits(time: np.ndarray, fghz: np.ndarray, spec: np.ndarray, tpk: Optional[str] = None) -> str:
+    Writes the EOVSA spectrum to a FITS file in the current folder.
+
+make_plot(out: dict, spec: np.ndarray, bgidx: List[int] = [100,110], bg2idx: Optional[List[int]] = None, vmin: float = 0.1, vmax: float = 10, lcfreqs: List[int] = [25, 235], name: Optional[str] = None, tpk: Optional[str] = None) -> Tuple[plt.Figure, plt.Axes, plt.Axes]:
+    Makes the final, nicely formatted plot and saves the spectrogram as a binary data file for subsequent sharing/plotting.
+
+Example usage:
+--------------
+from eovsapy import flare_spec
+from eovsapy.util import Time
+files = flare_spec.calIDB(Time(['2024-02-10 22:45','2024-02-10 22:50']))
+out, spec = flare_spec.inspect(files)
+spec = flare_spec.combine_subtracted(out)
+f, ax0, ax1 = flare_spec.make_plot(out, spec, tpk='2024-02-10 22:48')
+"""
 
 import matplotlib.pylab as plt
 import numpy as np
@@ -20,6 +55,16 @@ from .util import Time, ant_str2list, common_val_idx
 from . import pipeline_cal as pc
 from . import read_idb as ri
 import os
+import re
+
+def sanitize_filename(name):
+    """
+    Sanitize the filename by removing or replacing characters that might be invalid
+    or problematic in file names across different operating systems.
+    """
+    name = re.sub(r'[<>:"/\\|?*]', '_', name)  # Replace invalid characters with underscore
+    name = re.sub(r'\s+', '_', name).strip()  # Replace spaces and whitespace with underscore
+    return name
 
 def calIDB(trange):
     ''' Run udb_corr() on the relevant IDB files to calibrate them and correct saturation.
@@ -186,7 +231,8 @@ def spec_data_to_fits(time, fghz, spec, tpk=None):
     return fitsfile
 
  
-def make_plot(out, spec=None, ant_str='ant1-13', bgidx=[100,110], bg2idx=None, vmin=0.1, vmax=10, lcfreqs=[25, 235], name=None, tpk=None):
+
+def make_plot(out, spec, bgidx=[100,110], bg2idx=None, vmin=0.1, vmax=10, lcfreqs=[25, 235], name=None, tpk=None):
     ''' Makes the final, nicely formatted plot and saves the spectrogram as a binary data
         file for subsequent sharing/plotting.  It used the out and spec outputs from inspect()
         and makes a background-subtracted two-panel plot with properly formatted axes.  The
@@ -294,7 +340,13 @@ def make_plot(out, spec=None, ant_str='ant1-13', bgidx=[100,110], bg2idx=None, v
         tpk = Time(out['time'][0],format='jd').iso[:19]
     # Convert peak time to flare_id
     flare_id = tpk.replace('-','').replace(' ','').replace(':','')
-    name = f'eovsa.spec.flare_id_{flare_id}'
-    f.savefig(name+'.png')
+    if not name:
+        name = f'eovsa.spec.flare_id_{flare_id}'
+    name = sanitize_filename(name)
+    acceptable_extensions = ['.png', '.jpg', '.jpeg', '.tif', '.tiff', '.pdf']
+    # Check if name ends with an acceptable extension, append '.png' if it doesn't
+    if not any(name.lower().endswith(ext) for ext in acceptable_extensions):
+        name += '.png'
+    f.savefig(name)
     fh = spec_data_to_fits(out['time'], out['fghz'], subspec, tpk=tpk)
     return f, ax0, ax1
