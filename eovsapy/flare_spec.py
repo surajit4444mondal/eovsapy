@@ -10,6 +10,8 @@
 #   Slight change to make this work for pre-2019 data.
 # 2022-May-28  DG
 #   Allow the input to calIDB to be a filename or list.
+# 2024-Mar-27  DG
+#   Updated with changes from the Python 2.7 version, plus bug fixes.
 
 import matplotlib.pylab as plt
 import numpy as np
@@ -49,13 +51,11 @@ def calIDB(trange):
     for file in files: print(file)
     ans = 'Y'
     ans = input('Do you want to continue? (say no if you want to adjust timerange) [y/n]?')
+    outfiles = []
     if ans.upper() == 'Y':
-        outfiles = []
         for file in files:
             outfiles.append(pc.udb_corr(file,calibrate=True,desat=True))
-    else:
-        files = []
-    return files
+    return outfiles
     
 def inspect(files, vmin=0.1, vmax=10, ant_str='ant1-13', srcchk=True):
     ''' Given the list of filenames output by calIDB(), reads and displays a log-scaled
@@ -119,11 +119,74 @@ def combine_subtracted(out, bgidx=[100,110], vmin=0.1, vmax=10, ant_str='ant1-13
             idx.append(ri.bl2ord[i,j])
     idx = np.array(idx)
     good, = np.where(np.logical_and(blen[idx] > 150.,blen[idx] < 1000.))
-    bgd = np.nanmean(np.abs(out['x'][idx[good],0,:,120:130]),2).repeat(nt).reshape(len(idx[good]),nf,nt)
+    bgd = np.nanmean(np.abs(out['x'][idx[good],0,:,bgidx[0]:bgidx[1]]),2).repeat(nt).reshape(len(idx[good]),nf,nt)
     spec = np.nanmean(np.abs(out['x'][idx[good],0])-bgd,0)
     return spec
-    
-def make_plot(out, spec, bgidx=[100,110], bg2idx=None, vmin=0.1, vmax=10, lcfreqs=[25, 235], name=None):
+
+def spec_data_to_fits(time, fghz, spec, tpk=None):
+    ''' Write EOVSA spectrum to FITS in current folder.  tpk is the flare peak time iso string.
+    tpk = '2024-02-10 22:47:00'
+    example: fitsfile = spec_data_to_fits(time, fghz, spec, tpk='2024-02-10 22:47:00')
+    '''
+    from eovsapy.util import Time
+    from astropy.io import fits
+
+    if tpk is None:
+        tpk = Time(time[0],format='jd').iso[:19]
+    # Convert peak time to flare_id
+    flare_id = tpk.replace('-','').replace(' ','').replace(':','')
+    fitsfile = f'eovsa.spec.flare_id_{flare_id}.fits'
+
+    telescope = 'EOVSA'
+    observatory = 'Owens Valley Radio Observatory'
+    observer = 'EOVSA Team'
+
+    hdu = fits.PrimaryHDU(spec)
+    # Set up the extensions: FGHZ
+    col1 = fits.Column(name='FGHZ', format='E', array=fghz)
+    cols1 = fits.ColDefs([col1])
+    tbhdu1 = fits.BinTableHDU.from_columns(cols1)
+    tbhdu1.name = 'FGHZ'
+
+    date_obs = Time(time[0], format='jd').isot
+    date_end = Time(time[-1], format='jd').isot
+
+    # J is the format code for a 32 bit integer, who would have thought
+    # http://astropy.readthedocs.org/en/latest/io/fits/usage/table.html
+    col3 = fits.Column(name='TIME', format='D', array=time)
+
+    cols3 = fits.ColDefs([col3])#, col4
+    tbhdu3 = fits.BinTableHDU.from_columns(cols3)
+    tbhdu3.name = 'TIME'
+
+    # create an HDUList object to put in header information
+    hdulist = fits.HDUList([hdu, tbhdu1, tbhdu3])
+
+    # primary header
+    prihdr = hdulist[0].header
+    prihdr.set('FILENAME', fitsfile)
+    prihdr.set('ORIGIN', 'NJIT', 'Location where file was made')
+    prihdr.set('DATE', Time.now().isot, 'Date when file was made')
+    prihdr.set('OBSERVER', observer, 'Who to appreciate/blame')
+    prihdr.set('TELESCOP', telescope, observatory)
+    prihdr.set('OBJ_ID', 'SUN', 'Object ID')
+    prihdr.set('TYPE', 1, 'Flare Spectrum')
+    prihdr.set('DATE_OBS', date_obs, 'Start date/time of observation')
+    prihdr.set('DATE_END', date_end, 'End date/time of observation')
+    prihdr.set('FREQMIN', min(fghz), 'Min freq in observation (GHz)')
+    prihdr.set('FREQMAX', max(fghz), 'Max freq in observation (GHz)')
+    prihdr.set('XCEN', 0.0, 'Antenna pointing in arcsec from Sun center')
+    prihdr.set('YCEN', 0.0, 'Antenna pointing in arcsec from Sun center')
+    prihdr.set('POLARIZA', 'I', 'Polarizations present')
+    prihdr.set('RESOLUTI', 0.0, 'Resolution value')
+    # Write the file
+    hdulist.writeto(fitsfile, overwrite=True)
+
+    print(f'{fitsfile} saved')
+    return fitsfile
+
+ 
+def make_plot(out, spec=None, ant_str='ant1-13', bgidx=[100,110], bg2idx=None, vmin=0.1, vmax=10, lcfreqs=[25, 235], name=None, tpk=None):
     ''' Makes the final, nicely formatted plot and saves the spectrogram as a binary data
         file for subsequent sharing/plotting.  It used the out and spec outputs from inspect()
         and makes a background-subtracted two-panel plot with properly formatted axes.  The
@@ -137,7 +200,10 @@ def make_plot(out, spec, bgidx=[100,110], bg2idx=None, vmin=0.1, vmax=10, lcfreq
           out       The standard output dictionary from read_idb (returned by inspect()), needed
                       because it contains the time and frequency lists for the data.  No default.
           spec      The spectrogram formed by inspect(), which is a median over baselines between
-                      150 and 1000 nsec between antennas given in the inspect() call.  No default.
+                      150 and 1000 nsec between antennas given in the inspect() call.  If None (default),
+                      a new median spectrum is calculated using combine_subtracted().
+          antstr    The standard string of antennas to use (see util.ant_str2list()). 
+                          Default is all antennas 'ant1-13'
           bgidx     The time index range to use for creating the background to be subtracted from
                       the spectrogram.  This is just a mean over those time indexes.  Generally
                       a range of ten is sufficient.  Use the displayed spectrum from inspect()
@@ -151,6 +217,8 @@ def make_plot(out, spec, bgidx=[100,110], bg2idx=None, vmin=0.1, vmax=10, lcfreq
                       convention as follows:
                         name='EOVSA_yyyymmdd_Xflare' where yyyy is year, mm is month, dd is day, and 
                         X is the GOES class.
+          tpk       A Time() object specifying an approximate flare peak time, for documentation purposes.
+                      It is used to generate a flare ID.  If None, use the start time of the data.
           
         Outputs:
           f         The handle to the plot figure, in case you want to do some tweaks.  After tweaking,
@@ -158,6 +226,8 @@ def make_plot(out, spec, bgidx=[100,110], bg2idx=None, vmin=0.1, vmax=10, lcfreq
           ax0       The handle to the upper plot axis, for tweaking.
           ax1       The handle to the lower plot axis, for tweaking.
     '''
+    if spec is None:
+        spec = combine_subtracted(out, bgidx=bgidx, vmin=vmin, vmax=vmax, ant_str=ant_str)
     nf, nt = spec.shape
     ti = (out['time'] - out['time'][0])/(out['time'][-1] - out['time'][0]) # Relative time (0-1) of each datapoint
     if bgidx is None:
@@ -196,7 +266,7 @@ def make_plot(out, spec, bgidx=[100,110], bg2idx=None, vmin=0.1, vmax=10, lcfreq
     ax1 = plt.subplot(212)
     im2 = ax0.pcolormesh(times.plot_date,out['fghz'],np.log10(np.clip(subspec+vmin,vmin,vmax)))
     for frq in lcfreqs:
-        lc = np.mean(subspec[frq-5:frq+5],0)
+        lc = np.nanmean(subspec[frq-5:frq+5],0)
         ax1.step(times.plot_date,lc,label=str(out['fghz'][frq])[:6]+' GHz')
     ax1.set_ylim(-0.5,vmax)
     ax1.xaxis_date()
@@ -211,13 +281,20 @@ def make_plot(out, spec, bgidx=[100,110], bg2idx=None, vmin=0.1, vmax=10, lcfreq
     ax0.set_xlim(times[[0,-1]].plot_date)
     ax1.legend()
     ax0.set_yscale('log')
-    if name is None:
-        pass
-    else:
-        f.savefig(name+'.png')
-        fh = open(name+'.dat','wb')
-        fh.write(out['time'])
-        fh.write(out['fghz'])
-        fh.write(subspec)
-        fh.close()
+    # if name is None:
+    #     pass
+    # else:
+    #     f.savefig(name+'.png')
+    #     fh = open(name+'.dat','wb')
+    #     fh.write(out['time'])
+    #     fh.write(out['fghz'])
+    #     fh.write(subspec)
+    #     fh.close()
+    if tpk is None:
+        tpk = Time(out['time'][0],format='jd').iso[:19]
+    # Convert peak time to flare_id
+    flare_id = tpk.replace('-','').replace(' ','').replace(':','')
+    name = f'eovsa.spec.flare_id_{flare_id}'
+    f.savefig(name+'.png')
+    fh = spec_data_to_fits(out['time'], out['fghz'], subspec, tpk=tpk)
     return f, ax0, ax1
