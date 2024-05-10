@@ -48,7 +48,6 @@ spec = flare_spec.combine_subtracted(out)
 f, ax0, ax1 = flare_spec.make_plot(out, spec, tpk='2024-02-10 22:48')
 """
 
-
 import matplotlib.pylab as plt
 import numpy as np
 from matplotlib.dates import DateFormatter
@@ -97,13 +96,11 @@ def calIDB(trange):
     for file in files: print(file)
     ans = 'Y'
     ans = input('Do you want to continue? (say no if you want to adjust timerange) [y/n]?')
+    outfiles = []
     if ans.upper() == 'Y':
-        outfiles = []
         for file in files:
             outfiles.append(pc.udb_corr(file,calibrate=True,desat=True))
-    else:
-        files = []
-    return files
+    return outfiles
     
 def inspect(files, vmin=0.1, vmax=10, ant_str='ant1-13', srcchk=True):
     ''' Given the list of filenames output by calIDB(), reads and displays a log-scaled
@@ -167,7 +164,7 @@ def combine_subtracted(out, bgidx=[100,110], vmin=0.1, vmax=10, ant_str='ant1-13
             idx.append(ri.bl2ord[i,j])
     idx = np.array(idx)
     good, = np.where(np.logical_and(blen[idx] > 150.,blen[idx] < 1000.))
-    bgd = np.nanmean(np.abs(out['x'][idx[good],0,:,120:130]),2).repeat(nt).reshape(len(idx[good]),nf,nt)
+    bgd = np.nanmean(np.abs(out['x'][idx[good],0,:,bgidx[0]:bgidx[1]]),2).repeat(nt).reshape(len(idx[good]),nf,nt)
     spec = np.nanmean(np.abs(out['x'][idx[good],0])-bgd,0)
     return spec
 
@@ -234,6 +231,7 @@ def spec_data_to_fits(time, fghz, spec, tpk=None):
     return fitsfile
 
  
+
 def make_plot(out, spec, bgidx=[100,110], bg2idx=None, vmin=0.1, vmax=10, lcfreqs=[25, 235], name=None, tpk=None):
     ''' Makes the final, nicely formatted plot and saves the spectrogram as a binary data
         file for subsequent sharing/plotting.  It used the out and spec outputs from inspect()
@@ -248,7 +246,10 @@ def make_plot(out, spec, bgidx=[100,110], bg2idx=None, vmin=0.1, vmax=10, lcfreq
           out       The standard output dictionary from read_idb (returned by inspect()), needed
                       because it contains the time and frequency lists for the data.  No default.
           spec      The spectrogram formed by inspect(), which is a median over baselines between
-                      150 and 1000 nsec between antennas given in the inspect() call.  No default.
+                      150 and 1000 nsec between antennas given in the inspect() call.  If None (default),
+                      a new median spectrum is calculated using combine_subtracted().
+          antstr    The standard string of antennas to use (see util.ant_str2list()). 
+                          Default is all antennas 'ant1-13'
           bgidx     The time index range to use for creating the background to be subtracted from
                       the spectrogram.  This is just a mean over those time indexes.  Generally
                       a range of ten is sufficient.  Use the displayed spectrum from inspect()
@@ -262,6 +263,8 @@ def make_plot(out, spec, bgidx=[100,110], bg2idx=None, vmin=0.1, vmax=10, lcfreq
                       convention as follows:
                         name='EOVSA_yyyymmdd_Xflare' where yyyy is year, mm is month, dd is day, and 
                         X is the GOES class.
+          tpk       A Time() object specifying an approximate flare peak time, for documentation purposes.
+                      It is used to generate a flare ID.  If None, use the start time of the data.
           
         Outputs:
           f         The handle to the plot figure, in case you want to do some tweaks.  After tweaking,
@@ -269,6 +272,8 @@ def make_plot(out, spec, bgidx=[100,110], bg2idx=None, vmin=0.1, vmax=10, lcfreq
           ax0       The handle to the upper plot axis, for tweaking.
           ax1       The handle to the lower plot axis, for tweaking.
     '''
+    if spec is None:
+        spec = combine_subtracted(out, bgidx=bgidx, vmin=vmin, vmax=vmax, ant_str=ant_str)
     nf, nt = spec.shape
     ti = (out['time'] - out['time'][0])/(out['time'][-1] - out['time'][0]) # Relative time (0-1) of each datapoint
     if bgidx is None:
@@ -307,7 +312,7 @@ def make_plot(out, spec, bgidx=[100,110], bg2idx=None, vmin=0.1, vmax=10, lcfreq
     ax1 = plt.subplot(212)
     im2 = ax0.pcolormesh(times.plot_date,out['fghz'],np.log10(np.clip(subspec+vmin,vmin,vmax)))
     for frq in lcfreqs:
-        lc = np.mean(subspec[frq-5:frq+5],0)
+        lc = np.nanmean(subspec[frq-5:frq+5],0)
         ax1.step(times.plot_date,lc,label=str(out['fghz'][frq])[:6]+' GHz')
     ax1.set_ylim(-0.5,vmax)
     ax1.xaxis_date()
@@ -322,6 +327,15 @@ def make_plot(out, spec, bgidx=[100,110], bg2idx=None, vmin=0.1, vmax=10, lcfreq
     ax0.set_xlim(times[[0,-1]].plot_date)
     ax1.legend()
     ax0.set_yscale('log')
+    # if name is None:
+    #     pass
+    # else:
+    #     f.savefig(name+'.png')
+    #     fh = open(name+'.dat','wb')
+    #     fh.write(out['time'])
+    #     fh.write(out['fghz'])
+    #     fh.write(subspec)
+    #     fh.close()
     if tpk is None:
         tpk = Time(out['time'][0],format='jd').iso[:19]
     # Convert peak time to flare_id
